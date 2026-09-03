@@ -62,7 +62,7 @@ export default function App() {
 
       <section id="recomendaciones" className="container recs">
         {mood ? (
-          <>
+          <div className="recs-reveal" key={mood}>
             <div className="recs-head">
               <div>
                 <span className="recs-step">Paso 2 de 3</span>
@@ -86,11 +86,17 @@ export default function App() {
             </div>
 
             <div id="movie-row" className="movie-row no-scrollbar">
-              {recommendations.map((m) => (
-                <MovieCard key={m.id} movie={m} onOpen={setMovie} />
+              {recommendations.map((m, i) => (
+                <div
+                  className="movie-reveal"
+                  style={{ '--reveal-delay': `${i * 45}ms` }}
+                  key={m.id}
+                >
+                  <MovieCard movie={m} onOpen={setMovie} />
+                </div>
               ))}
             </div>
-          </>
+          </div>
         ) : (
           <div className="empty">
             <p className="empty-title">Tu sala está en penumbra</p>

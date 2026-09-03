@@ -447,7 +447,11 @@ svg {
   background: var(--card);
   padding: 1.25rem 1rem;
   text-align: left;
-  transition: all 0.3s;
+  /* Solo animamos propiedades visuales (no de layout). Usar `all` hacía que
+     el card animara su tamaño al seleccionar (por el hint/glyph), provocando
+     el "encoge y vuelve" y el reflow de la página. */
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease,
+    background-color 0.3s ease;
 }
 /* Borde combinado: borde core (blanco) que difumina hacia el color fuente en el exterior */
 .mood-card::before {
@@ -641,6 +645,63 @@ svg {
 @media (min-width: 640px) {
   .recs {
     padding: 4rem 2rem 4rem;
+  }
+}
+
+/* Entrada de la sección sincronizada con la selección del mood-card:
+   misma duración/curva que la transición del card (0.3s ease). Al llevar
+   key={mood}, se re-dispara en cada selección, haciendo que el reflow se
+   perciba como una transición fluida en lugar de un salto. */
+.recs-reveal {
+  animation: recs-reveal 0.3s ease both;
+}
+@keyframes recs-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Cada movie-card entra escalonada (stagger) para acompañar la aparición. */
+.movie-reveal {
+  min-width: 0;
+  /* En móvil el .movie-row es flex: el wrapper toma el sizing de item. */
+  width: 62vw;
+  max-width: 240px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  animation: movie-reveal 0.35s ease both;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+.movie-reveal > .movie-card {
+  width: 100%;
+  height: 100%;
+}
+@media (min-width: 640px) {
+  .movie-reveal {
+    /* En grid, la celda define el ancho; el wrapper la ocupa por completo. */
+    width: auto;
+    max-width: none;
+  }
+}
+@keyframes movie-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recs-reveal,
+  .movie-reveal {
+    animation: none;
   }
 }
 
