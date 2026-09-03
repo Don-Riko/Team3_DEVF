@@ -439,6 +439,7 @@ svg {
 }
 
 .mood-card {
+  --mx: 0.5;
   position: relative;
   overflow: hidden;
   border-radius: 1.375rem;
@@ -448,6 +449,32 @@ svg {
   text-align: left;
   transition: all 0.3s;
 }
+/* Borde combinado: borde core (blanco) que difumina hacia el color fuente en el exterior */
+.mood-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    color-mix(in oklab, var(--mood) 40%, white) 35%,
+    var(--mood) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
 .mood-card:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--background);
@@ -456,12 +483,19 @@ svg {
   transform: translateY(-0.125rem);
   box-shadow: var(--shadow-surface);
 }
-.mood-card:not([aria-checked="true"]):hover {
-  border-color: color-mix(in oklab, var(--mood) 45%, transparent);
+.mood-card:hover::before,
+.mood-card[aria-checked="true"]::before {
+  opacity: 1;
 }
 .mood-card[aria-checked="true"] {
   border-color: var(--primary);
   box-shadow: var(--shadow-screen);
+}
+/* Opt-in: cuando .mood-card--themed está activo, el estado seleccionado
+   usa --mood en lugar de los globales --primary / --shadow-screen */
+.mood-card--themed[aria-checked="true"] {
+  border-color: var(--mood);
+  box-shadow: 0 30px 80px -30px color-mix(in oklab, var(--mood) 45%, transparent);
 }
 
 .mood-glow {
@@ -483,8 +517,41 @@ svg {
   opacity: 1;
 }
 
+/* Metal shine: banda diagonal blanco -> color fuente que sigue al puntero,
+   recortada al ancho interno del card por overflow: hidden */
+.mood-shine {
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: calc(var(--mx, 0.5) * 100% - 45%);
+  width: 90%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transform: rotate(18deg);
+  transition: opacity 0.3s;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    color-mix(in oklab, var(--mood) 60%, transparent) 30%,
+    rgba(255, 255, 255, 0.85) 50%,
+    color-mix(in oklab, var(--mood) 60%, transparent) 70%,
+    transparent 100%
+  );
+  filter: blur(10px);
+}
+.mood-card:hover .mood-shine {
+  opacity: 0.75;
+}
+/* Seleccionado + hover: conserva la naturaleza hover, pero más tenue y difuso */
+.mood-card[aria-checked="true"]:hover .mood-shine {
+  opacity: 0.4;
+  filter: blur(18px);
+}
+
 .mood-row {
   position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -504,6 +571,40 @@ svg {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mood) 40%, transparent);
 }
 
+/* Glyph oculto en el estado inicial: colapsado y fuera del layout.
+   Entra con slide desde la izquierda, sale con slide hacia la derecha. */
+.mood-card[data-glyph="out"] .mood-glyph {
+  width: 0;
+  margin-right: -0.75rem; /* compensa el gap del mood-row al colapsar */
+  opacity: 0;
+  transform: translateX(120%); /* estado de reposo: fuera por la derecha */
+  transition:
+    width 0.35s ease,
+    margin 0.35s ease,
+    opacity 0.3s ease,
+    transform 0.35s ease;
+}
+.mood-card[data-glyph="in"] .mood-glyph {
+  width: 2.25rem;
+  margin-right: 0;
+  opacity: 1;
+  transform: translateX(0);
+  animation: mood-glyph-in 0.35s ease both;
+  transition:
+    width 0.35s ease,
+    margin 0.35s ease;
+}
+@keyframes mood-glyph-in {
+  from {
+    opacity: 0;
+    transform: translateX(-120%); /* entra desde la izquierda */
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .mood-label {
   display: block;
   overflow: hidden;
@@ -515,6 +616,7 @@ svg {
   color: var(--foreground);
 }
 
+/* Hint: oculto por defecto, aparece con fade sólo al seleccionar el card. */
 .mood-hint {
   display: block;
   overflow: hidden;
@@ -522,6 +624,13 @@ svg {
   white-space: nowrap;
   font-size: 0.75rem;
   color: var(--muted-foreground);
+  max-height: 0;
+  opacity: 0;
+  transition: opacity 0.35s ease, max-height 0.35s ease;
+}
+.mood-card[data-hint="in"] .mood-hint {
+  max-height: 1.5rem;
+  opacity: 1;
 }
 
 /* ---------- Recommendations ---------- */

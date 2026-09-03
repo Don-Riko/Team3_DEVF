@@ -55,7 +55,7 @@ export default function App() {
             </p>
           </div>
           <div className="mood-wrap">
-            <MoodPicker value={mood} onChange={setMood} />
+            <MoodPicker value={mood} onChange={setMood} themed />
           </div>
         </div>
       </section>
@@ -67,8 +67,9 @@ export default function App() {
               <div>
                 <span className="recs-step">Paso 2 de 3</span>
                 <h2 className="recs-title">
-                  Para cuando te sientes{' '}
-                  <span style={{ color: moodMeta.accent }}>{moodMeta.label.toLowerCase()}</span>
+                  Para cuando te sientes{'  '}
+                  <span style={{ color: moodMeta.accent }}>{moodMeta.label.toLowerCase()}</span> 
+                  {' ...'}
                 </h2>
                 <p className="recs-sub">
                   {recommendations.length} títulos ordenados por afinidad con tu ánimo.
