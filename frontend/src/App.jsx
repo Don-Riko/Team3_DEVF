@@ -1,9 +1,78 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { HERO_IMAGE, getMood, recommendationsFor } from './data'
 import { SearchIcon, SparklesIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { useAuth } from './AuthContext'
 import MoodPicker from './MoodPicker'
 import MovieCard from './MovieCard'
 import MovieModal from './MovieModal'
+import { TypingAnimation } from './components/TypingAnimation'
+
+// Botón de perfil con las iniciales del usuario y un dropdown para cerrar sesión.
+function ProfileMenu() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  const initials = user?.initials ?? 'SM'
+
+  // Cerrar al hacer click fuera o presionar Escape.
+  useEffect(() => {
+    if (!open) return
+    function onPointer(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpen(false)
+      }
+    }
+    function onKey(event) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  function handleLogout() {
+    setOpen(false)
+    logout()
+    navigate('/login', { replace: true })
+  }
+
+  return (
+    <div className="profile" ref={menuRef}>
+      <button
+        type="button"
+        className="avatar avatar-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Perfil de ${user?.username ?? 'usuario'}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {initials}
+      </button>
+      {open ? (
+        <div className="profile-menu" role="menu">
+          <div className="profile-menu-head">
+            <span className="profile-menu-name">{user?.username ?? 'Invitado'}</span>
+            <span className="profile-menu-sub">Sesión iniciada</span>
+          </div>
+          <button
+            type="button"
+            className="profile-menu-item"
+            role="menuitem"
+            onClick={handleLogout}
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 export default function App() {
   const [mood, setMood] = useState(null)
@@ -35,9 +104,7 @@ export default function App() {
             <button type="button" className="icon-btn" aria-label="Buscar">
               <SearchIcon size={16} />
             </button>
-            <span className="avatar" aria-hidden="true">
-              SM
-            </span>
+            <ProfileMenu />
           </div>
         </div>
       </header>
@@ -68,8 +135,15 @@ export default function App() {
                 <span className="recs-step">Paso 2 de 3</span>
                 <h2 className="recs-title">
                   Para cuando te sientes{'  '}
-                  <span style={{ color: moodMeta.accent }}>{moodMeta.label.toLowerCase()}</span> 
-                  {' ...'}
+                  <TypingAnimation
+                    className="recs-title-typed"
+                    style={{ color: moodMeta.accent }}
+                    startOnView={true}
+                    typeSpeed={70}
+                    showCursor={false}
+                  >
+                    {moodMeta.label.toLowerCase()}
+                  </TypingAnimation>
                 </h2>
                 <p className="recs-sub">
                   {recommendations.length} títulos ordenados por afinidad con tu ánimo.
@@ -89,7 +163,7 @@ export default function App() {
               {recommendations.map((m, i) => (
                 <div
                   className="movie-reveal"
-                  style={{ '--reveal-delay': `${i * 45}ms` }}
+                  style={{ '--reveal-delay': `calc(${i} * var(--movie-stagger))` }}
                   key={m.id}
                 >
                   <MovieCard movie={m} onOpen={setMovie} />

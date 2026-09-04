@@ -1,6 +1,15 @@
 :root {
   --radius: 0.875rem;
 
+  /* Tokens de timing compartidos para sincronizar la selección del
+     mood-card con la aparición de la sección de recomendaciones. */
+  --mood-ease: cubic-bezier(0.22, 0.61, 0.36, 1); /* easeOutCubic-ish */
+  --mood-dur: 0.3s;          /* duración de la respuesta del mood-card */
+  --recs-delay: 0.09s;       /* la sección revela justo tras el card */
+  --recs-dur: 0.34s;         /* duración de la entrada de la sección */
+  --movie-dur: 0.34s;        /* duración por movie-card */
+  --movie-stagger: 42ms;     /* paso del stagger entre movie-cards */
+
   --background: oklch(16.3% 0.024 265.5);
   --foreground: oklch(98.4% 0.003 247.858);
   --card: oklch(23.8% 0.026 264.5);
@@ -450,8 +459,10 @@ svg {
   /* Solo animamos propiedades visuales (no de layout). Usar `all` hacía que
      el card animara su tamaño al seleccionar (por el hint/glyph), provocando
      el "encoge y vuelve" y el reflow de la página. */
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease,
-    background-color 0.3s ease;
+  transition: transform var(--mood-dur) var(--mood-ease),
+    box-shadow var(--mood-dur) var(--mood-ease),
+    border-color var(--mood-dur) var(--mood-ease),
+    background-color var(--mood-dur) var(--mood-ease);
 }
 /* Borde combinado: borde core (blanco) que difumina hacia el color fuente en el exterior */
 .mood-card::before {
@@ -649,11 +660,12 @@ svg {
 }
 
 /* Entrada de la sección sincronizada con la selección del mood-card:
-   misma duración/curva que la transición del card (0.3s ease). Al llevar
-   key={mood}, se re-dispara en cada selección, haciendo que el reflow se
-   perciba como una transición fluida en lugar de un salto. */
+   misma curva que el card y un pequeño delay para encadenar (el card
+   responde primero, la sección revela justo después). key={mood} la
+   re-dispara en cada selección, haciendo que el reflow se perciba fluido. */
 .recs-reveal {
-  animation: recs-reveal 0.3s ease both;
+  animation: recs-reveal var(--recs-dur) var(--mood-ease) both;
+  animation-delay: var(--recs-delay);
 }
 @keyframes recs-reveal {
   from {
@@ -666,7 +678,8 @@ svg {
   }
 }
 
-/* Cada movie-card entra escalonada (stagger) para acompañar la aparición. */
+/* Cada movie-card entra escalonada (stagger), arrancando tras el delay de la
+   sección para una cascada continua desde el card seleccionado. */
 .movie-reveal {
   min-width: 0;
   /* En móvil el .movie-row es flex: el wrapper toma el sizing de item. */
@@ -674,8 +687,8 @@ svg {
   max-width: 240px;
   flex-shrink: 0;
   scroll-snap-align: start;
-  animation: movie-reveal 0.35s ease both;
-  animation-delay: var(--reveal-delay, 0ms);
+  animation: movie-reveal var(--movie-dur) var(--mood-ease) both;
+  animation-delay: calc(var(--recs-delay) + var(--reveal-delay, 0ms));
 }
 .movie-reveal > .movie-card {
   width: 100%;
@@ -1195,5 +1208,247 @@ svg {
     align-items: center;
     justify-content: space-between;
     padding: 2rem;
+  }
+}
+
+/* ---------- Auth / Login (/login) ---------- */
+
+.auth-screen {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  background:
+    radial-gradient(
+      120% 80% at 50% -10%,
+      color-mix(in oklab, var(--primary) 22%, transparent),
+      transparent 60%
+    ),
+    var(--background);
+}
+.auth-bg--fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--gradient-veil);
+  opacity: 0.5;
+}
+
+.auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 26rem;
+  border-radius: 1.375rem;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--card) 92%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 2rem 1.75rem;
+  box-shadow: var(--shadow-screen);
+}
+
+.auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: "Syne", sans-serif;
+  font-weight: 600;
+}
+.auth-brand .brand-mark {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.6rem;
+  color: var(--primary-foreground);
+  background: var(--gradient-primary);
+}
+
+.auth-title {
+  margin-top: 1.5rem;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.auth-sub {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+.auth-form {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.field-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.field-input {
+  height: 2.5rem;
+  padding: 0 0.875rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--input);
+  background: color-mix(in oklab, var(--background) 60%, transparent);
+  color: var(--foreground);
+  font-size: 0.9375rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field-input::placeholder {
+  color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+}
+.field-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
+}
+.field-input--error {
+  border-color: var(--brand-pink);
+}
+.field-input--error:focus {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand-pink) 25%, transparent);
+}
+.field-error {
+  font-size: 0.75rem;
+  color: var(--brand-pink);
+}
+
+.auth-error {
+  padding: 0.625rem 0.75rem;
+  border-radius: calc(var(--radius) - 4px);
+  font-size: 0.8125rem;
+  color: var(--brand-pink);
+  background: color-mix(in oklab, var(--brand-pink) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand-pink) 35%, transparent);
+}
+
+.auth-submit {
+  margin-top: 0.25rem;
+  width: 100%;
+  height: 2.75rem;
+}
+
+/* ---------- Profile menu (header) ---------- */
+
+.profile {
+  position: relative;
+  margin-left: 0.25rem;
+}
+.avatar-btn {
+  margin-left: 0;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.avatar-btn:hover {
+  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
+}
+.avatar-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--background);
+}
+.avatar-btn[aria-expanded="true"] {
+  border-color: var(--primary);
+}
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 50;
+  min-width: 12rem;
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--popover) 96%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-surface);
+  overflow: hidden;
+  animation: profile-menu-in 0.16s ease both;
+}
+@keyframes profile-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.profile-menu-head {
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+.profile-menu-name {
+  display: block;
+  font-family: "Syne", sans-serif;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--foreground);
+}
+.profile-menu-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.profile-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.6875rem 0.875rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  background: transparent;
+  transition: background-color 0.15s, color 0.15s;
+}
+.profile-menu-item:hover {
+  background: color-mix(in oklab, var(--brand-pink) 16%, transparent);
+  color: var(--brand-pink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu {
+    animation: none;
+  }
+}
+
+/* ---------- Typing Animation (MagicUI, adaptado) ---------- */
+
+.typing-animation {
+  display: inline-block;
+  white-space: pre-wrap;
+}
+.typing-cursor {
+  display: inline-block;
+  margin-left: 0.05em;
+  color: currentColor;
+  font-weight: inherit;
+}
+.typing-cursor--block {
+  transform: translateY(0.05em);
+}
+.typing-cursor--blink {
+  animation: typing-blink 1s steps(1) infinite;
+}
+@keyframes typing-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing-cursor--blink {
+    animation: none;
   }
 }
