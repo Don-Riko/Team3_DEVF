@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { HERO_IMAGE, getMood, recommendationsFor } from './data'
 import { SearchIcon, SparklesIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
 import { useAuth } from './AuthContext'
+import { recordMoodSelection } from './auth'
 import MoodPicker from './MoodPicker'
 import MovieCard from './MovieCard'
 import MovieModal from './MovieModal'
@@ -77,9 +78,18 @@ function ProfileMenu() {
 export default function App() {
   const [mood, setMood] = useState(null)
   const [movie, setMovie] = useState(null)
+  const { user } = useAuth()
 
   const recommendations = useMemo(() => recommendationsFor(mood), [mood])
   const moodMeta = mood ? getMood(mood) : null
+
+  function handleMoodChange(nextMood) {
+    setMood(nextMood)
+    if (nextMood && user?.username) {
+      // Registra la selección en Supabase vía el backend Express.
+      recordMoodSelection(user.username, nextMood)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -122,7 +132,7 @@ export default function App() {
             </p>
           </div>
           <div className="mood-wrap">
-            <MoodPicker value={mood} onChange={setMood} themed />
+            <MoodPicker value={mood} onChange={handleMoodChange} themed />
           </div>
         </div>
       </section>
