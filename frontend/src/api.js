@@ -80,3 +80,20 @@ export async function fetchProfile(username) {
   }
   return { ok: true, profile: data.profile }
 }
+
+/**
+ * Búsqueda conversacional: texto libre → LLM → mood + keywords → OMDB.
+ * @param {string} query texto en lenguaje natural ("quiero algo tranquilo")
+ */
+export async function searchMood(query) {
+  const params = new URLSearchParams({ q: query })
+  const { response, data } = await request(`/mood-search?${params.toString()}`)
+  if (!response.ok || !data?.ok) {
+    return { ok: false, error: data?.error || 'No se pudo procesar la búsqueda.' }
+  }
+  return {
+    ok: true,
+    results: data.results || [],
+    llm: data.llm || null,
+  }
+}

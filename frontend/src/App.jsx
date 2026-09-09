@@ -16,6 +16,7 @@ import {
   fetchLibrary,
   fetchOmdbCatalog,
   searchMovies,
+  searchMood,
   removeLibraryItem,
   saveLibraryItem,
   fetchProfile,
@@ -669,11 +670,24 @@ export default function App() {
                 className="mood-text-field"
                 placeholder="Ej: quiero algo tranquilo, necesito reírme, dame suspenso..."
                 aria-label="Describe tu estado de ánimo con tus palabras"
-                onKeyDown={(event) => {
+                onKeyDown={async (event) => {
                   if (event.key === 'Enter') {
-                    const detected = parseMoodFromText(event.currentTarget.value)
-                    if (detected) handleMoodChange(detected)
+                    const text = event.currentTarget.value.trim()
+                    if (!text) return
                     event.currentTarget.value = ''
+                    // 1) Intentar búsqueda conversacional con LLM (backend)
+                    try {
+                      const result = await searchMood(text)
+                      if (result.ok && result.llm?.mood) {
+                        handleMoodChange(result.llm.mood)
+                        return
+                      }
+                    } catch {
+                      // fallback silencioso
+                    }
+                    // 2) Fallback: parser local de keywords
+                    const detected = parseMoodFromText(text)
+                    if (detected) handleMoodChange(detected)
                   }
                 }}
               />

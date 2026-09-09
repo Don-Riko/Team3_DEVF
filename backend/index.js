@@ -36,6 +36,18 @@ const OMDB_BASE = 'https://www.omdbapi.com'
 const TMDB_KEY = process.env.TMDB_API_KEY
 const TMDB_BASE = 'https://api.themoviedb.org/3'
 
+// ---------- OpenRouter (LLM para búsqueda conversacional) ----------
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY
+const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
+
+// Modelos free recomendados (orden de preferencia)
+const OPENROUTER_MODELS = [
+  'z-ai/glm-5.2:free',
+  'openai/gpt-oss-120b:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'openrouter/free',
+]
+
 // Cache en memoria por imdbID para no gastar la cuota diaria de OMDB.
 const omdbCache = new Map()
 const trailerCache = new Map()
@@ -349,6 +361,74 @@ async function omdb(params) {
   return response.json()
 }
 
+// ---------- OpenRouter LLM: parseo de mood desde texto libre ----------
+async function parseMoodWithLLM(text) {
+  if (!OPENROUTER_KEY) return null
+
+  const systemPrompt = `Eres un clasificador de estado de ánimo para una app de cine.
+El usuario escribe con sus palabras cómo se siente y quieres ver.
+Devuelve SOLO JSON válido con este esquema:
+{
+  "mood": "melancolico|energico|nostalgico|suspenso|feliz|romantico|aventurero|reflexivo|null",
+  "confidence": 0-1,
+  "keywords": ["palabra1", "palabra2"],  // palabras clave extraídas para búsqueda OMDB
+  "referenceTitle": "título de referencia si menciona uno", // ej: "algo como Inception"
+  "reasoning": "explicación breve en español"
+}
+Moods válidos: melancolico, energico, nostalgico, suspenso, feliz, romantico, aventurero, reflexivo.
+Si no detectas un mood claro, pon mood: null.`
+
+  for (const model of OPENROUTER_MODELS) {
+    try {
+      const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_KEY}`,
+          'HTTP-Referer': 'https://github.com/Don-Riko/Team3_DEVF',
+          'X-Title': 'Midnight Cinema & Mood',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: text },
+          ],
+          response_format: { type: 'json_object' },
+          max_tokens: 300,
+          temperature: 0.3,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.text()
+        console.warn(`OpenRouter ${model} error: ${response.status} ${err}`)
+        continue // try next model
+      }
+
+      const data = await response.json()
+      const content = data.choices?.[0]?.message?.content
+      if (!content) continue
+
+      const parsed = JSON.parse(content)
+      if (parsed && typeof parsed === 'object') {
+        return {
+          mood: parsed.mood || null,
+          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+          keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+          referenceTitle: parsed.referenceTitle || '',
+          reasoning: parsed.reasoning || '',
+          model,
+        }
+      }
+    } catch (error) {
+      console.warn(`OpenRouter ${model} failed:`, error.message)
+      continue
+    }
+  }
+  return null
+}
+
 function runtimeLabel(minutes) {
   if (!minutes) return ''
   const h = Math.floor(minutes / 60)
@@ -578,6 +658,87 @@ server.get('/api/search', async (request, response) => {
     })
   } catch (error) {
     console.error('SERVER ERROR [GET /api/search]:', error)
+    return response.status(502).json({ ok: false, error: error.message })
+  }
+})
+
+// GET /api/mood-search?q=X
+// Búsqueda conversacional: usa LLM (OpenRouter) para interpretar el texto libre
+// del usuario, extraer mood + palabras clave, y buscar en OMDB enriquecido.
+server.get('/api/mood-search', async (request, response) => {
+  try {
+    const { q } = request.query
+    const query = q ? String(q).trim() : ''
+
+    if (!query) {
+      return response.status(400).json({ ok: false, error: 'El parámetro q es requerido.' })
+    }
+
+    if (!OMDB_KEY) {
+      return response.status(503).json({
+        ok: false,
+        error: 'OMDB_API_KEY no configurada en el .env del backend.',
+      })
+    }
+
+    // 1) LLM analiza el texto → mood + keywords + título de referencia
+    const llmResult = await parseMoodWithLLM(query)
+
+    // 2) Construir queries de búsqueda para OMDB
+    const searchQueries = []
+    if (llmResult?.keywords?.length) searchQueries.push(...llmResult.keywords)
+    if (llmResult?.referenceTitle) searchQueries.push(llmResult.referenceTitle)
+    // Fallback: usar el texto original si el LLM no dio keywords
+    if (searchQueries.length === 0) searchQueries.push(query)
+
+    // 3) Buscar en OMDB con cada query y combinar resultados (dedup por imdbID)
+    const allResults = new Map()
+    for (const sq of searchQueries.slice(0, 3)) { // máx 3 queries para no agotar cuota
+      try {
+        const raw = await omdb({ s: sq, type: 'movie', page: 1 })
+        if (raw.Response === 'True' && Array.isArray(raw.Search)) {
+          for (const hit of raw.Search) {
+            if (!allResults.has(hit.imdbID)) {
+              allResults.set(hit.imdbID, { imdbId: hit.imdbID, title: hit.Title || sq })
+            }
+          }
+        }
+      } catch {
+        // query individual fallida no rompe el resto
+      }
+    }
+
+    // 4) Enriquecer candidatos (detalle + tráiler) y filtrar por mood si LLM detectó uno
+    const candidates = [...allResults.values()].slice(0, 20)
+    let results = (await enrichMovies(candidates)).filter(Boolean)
+
+    if (llmResult?.mood && MOOD_GENRES[llmResult.mood]) {
+      const genreList = MOOD_GENRES[llmResult.mood]
+      const tuned = results.filter((m) => (m.genres || []).some((g) => genreList.includes(g)))
+      const rest = results.filter((m) => !(m.genres || []).some((g) => genreList.includes(g)))
+      results = [...tuned, ...rest]
+    }
+
+    // Asignar mood detectado a cada película
+    results = results.map((m) => ({ ...m, mood: m.mood || llmResult?.mood || moodForGenres(m.genres) }))
+
+    return response.json({
+      ok: true,
+      query,
+      llm: llmResult
+        ? {
+            mood: llmResult.mood,
+            confidence: llmResult.confidence,
+            keywords: llmResult.keywords,
+            referenceTitle: llmResult.referenceTitle,
+            reasoning: llmResult.reasoning,
+            model: llmResult.model,
+          }
+        : null,
+      results,
+    })
+  } catch (error) {
+    console.error('SERVER ERROR [GET /api/mood-search]:', error)
     return response.status(502).json({ ok: false, error: error.message })
   }
 })
