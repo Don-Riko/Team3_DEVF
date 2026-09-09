@@ -36,12 +36,19 @@ export async function fetchOmdbMovie(imdbId) {
  * Búsqueda de películas reales en OMDB por nombre.
  * @param {string} query texto a buscar en los títulos
  */
-export async function searchMovies(query) {
-  const { response, data } = await request(`/search?q=${encodeURIComponent(query)}`)
+export async function searchMovies(query, page = 1) {
+  const params = new URLSearchParams({ q: query, page: String(page) })
+  const { response, data } = await request(`/search?${params.toString()}`)
   if (!response.ok || !data?.ok) {
     return { ok: false, error: data?.error || 'No se encontraron resultados.' }
   }
-  return { ok: true, results: data.results || [], total: data.total || 0 }
+  return {
+    ok: true,
+    results: data.results || [],
+    total: data.total || 0,
+    page: data.page || page,
+    hasMore: Boolean(data.hasMore),
+  }
 }
 
 export async function fetchLibrary(username) {

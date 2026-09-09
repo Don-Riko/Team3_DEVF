@@ -37,20 +37,16 @@ export default function MovieModal({
     }
   }, [open, movie, onOpenChange])
 
-  // Al cambiar de película se resetea el reproductor (evita arrastrar el
-  // estado de pausa de un tráiler al siguiente).
-  useEffect(() => {
-    setPlaying(false)
-    setPaused(false)
-  }, [movie?.id])
-
   if (!movie) return null
   const mood = getMood(movie.mood)
 
   // Solo se arma una URL de tráiler si es un video VERIFICADO para esta
   // película (movie.trailerKey). Nunca se sustituye por un video genérico:
   // si no hay tráiler verificado se ofrece movie.trailerSearchUrl en su lugar.
-  const hasTrailer = Boolean(movie.trailerKey)
+  const fallbackTrailerSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(
+    `${movie.title} ${movie.year || ''} official trailer`.trim(),
+  )}`
+  const hasTrailer = Boolean(movie.trailerKey && movie.video?.verified)
   const trailerUrl = hasTrailer
     ? `https://www.youtube.com/embed/${movie.trailerKey}?autoplay=1&rel=0&enablejsapi=1`
     : ''
@@ -242,7 +238,7 @@ export default function MovieModal({
               </button>
             ) : (
               <a
-                href={movie.trailerSearchUrl}
+                href={movie.trailerSearchUrl || fallbackTrailerSearchUrl}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="btn btn-secondary btn-lg"

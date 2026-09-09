@@ -152,6 +152,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState(null) // null = sin búsqueda aún
   const [searchLoading, setSearchLoading] = useState(false)
+  const [searchPage, setSearchPage] = useState(1)
+  const [searchTotal, setSearchTotal] = useState(0)
+  const [searchHasMore, setSearchHasMore] = useState(false)
   const searchInputRef = useRef(null)
 
   const moodMeta = mood ? getMood(mood) : null
@@ -238,6 +241,9 @@ export default function App() {
     setSearchOpen(false)
     setSearchQuery('')
     setSearchResults(null)
+    setSearchPage(1)
+    setSearchTotal(0)
+    setSearchHasMore(false)
   }
 
   async function handleSearchSubmit(event) {
@@ -245,10 +251,30 @@ export default function App() {
     const query = searchQuery.trim()
     if (!query) return
     setSearchLoading(true)
-    const result = await searchMovies(query)
+    const result = await searchMovies(query, 1)
     setSearchLoading(false)
-    if (result.ok) setSearchResults(result.results)
-    else setSearchResults([])
+    if (result.ok) {
+      setSearchResults(result.results)
+      setSearchPage(result.page)
+      setSearchTotal(result.total)
+      setSearchHasMore(result.hasMore)
+    } else {
+      setSearchResults([])
+      setSearchHasMore(false)
+    }
+  }
+
+  async function handleLoadMoreSearch() {
+    const query = searchQuery.trim()
+    if (!query || searchLoading || !searchHasMore) return
+    setSearchLoading(true)
+    const result = await searchMovies(query, searchPage + 1)
+    setSearchLoading(false)
+    if (!result.ok) return
+    setSearchResults((current) => [...(current || []), ...result.results])
+    setSearchPage(result.page)
+    setSearchTotal(result.total)
+    setSearchHasMore(result.hasMore)
   }
 
   function handleSearchKeyDown(event) {
@@ -399,7 +425,7 @@ export default function App() {
             ) : (
               <>
                 <p className="recs-sub">
-                  {searchResults.length} resultado{searchResults.length === 1 ? '' : 's'} de
+                  {searchResults.length} de {searchTotal || searchResults.length} resultado{searchTotal === 1 ? '' : 's'} de
                   OMDB para "{searchQuery.trim()}".
                 </p>
                 <div className="movie-row no-scrollbar search-results">
@@ -415,6 +441,16 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+                {searchHasMore ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary search-more"
+                    onClick={handleLoadMoreSearch}
+                    disabled={searchLoading}
+                  >
+                    {searchLoading ? 'Cargando...' : 'Cargar más resultados'}
+                  </button>
+                ) : null}
               </>
             )}
           </div>

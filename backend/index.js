@@ -33,9 +33,12 @@ const DATABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public'
 // ---------- OMDB (catálogo dinámico enriquecido) ----------
 const OMDB_KEY = process.env.OMDB_API_KEY
 const OMDB_BASE = 'https://www.omdbapi.com'
+const TMDB_KEY = process.env.TMDB_API_KEY
+const TMDB_BASE = 'https://api.themoviedb.org/3'
 
 // Cache en memoria por imdbID para no gastar la cuota diaria de OMDB.
 const omdbCache = new Map()
+const trailerCache = new Map()
 
 // OMDB no permite filtrar por género en su búsqueda `s=` (solo busca en
 // títulos), así que el catálogo dinámico arma un pool de películas con estas
@@ -191,7 +194,10 @@ async function enrichMovies(entries) {
       try {
         const raw = await omdb({ i: entry.imdbId, plot: 'short' })
         const movie = omdbToMovie(entry, raw)
-        if (movie) omdbCache.set(entry.imdbId, movie)
+        if (movie) {
+          await attachTrailer(movie)
+          omdbCache.set(entry.imdbId, movie)
+        }
         return movie
       } catch {
         return null
@@ -266,6 +272,65 @@ const MOVIE_TRAILERS = {
 function trailerSearchUrl(title, year) {
   const q = `${title} ${year || ''} official trailer`.trim()
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+}
+
+async function resolveTmdbTrailer(imdbId) {
+  if (!TMDB_KEY) return null
+  if (trailerCache.has(imdbId)) return trailerCache.get(imdbId)
+
+  try {
+    const findUrl = new URL(`${TMDB_BASE}/find/${encodeURIComponent(imdbId)}`)
+    findUrl.searchParams.set('api_key', TMDB_KEY)
+    findUrl.searchParams.set('external_source', 'imdb_id')
+    const findResponse = await fetch(findUrl)
+    if (!findResponse.ok) return null
+    const found = await findResponse.json()
+    const media = found.movie_results?.[0]
+    if (!media?.id) return null
+
+    const videoUrl = new URL(`${TMDB_BASE}/movie/${media.id}/videos`)
+    videoUrl.searchParams.set('api_key', TMDB_KEY)
+    videoUrl.searchParams.set('language', 'en-US')
+    const videoResponse = await fetch(videoUrl)
+    if (!videoResponse.ok) return null
+    const data = await videoResponse.json()
+    const video = (data.results || []).find(
+      (item) => item.site === 'YouTube' && item.type === 'Trailer' && item.official,
+    ) || (data.results || []).find(
+      (item) => item.site === 'YouTube' && ['Trailer', 'Teaser'].includes(item.type),
+    )
+    if (!video?.key) return null
+
+    const result = {
+      provider: 'tmdb',
+      key: video.key,
+      url: `https://www.youtube.com/watch?v=${video.key}`,
+      verified: true,
+    }
+    trailerCache.set(imdbId, result)
+    return result
+  } catch {
+    return null
+  }
+}
+
+async function attachTrailer(movie) {
+  if (movie.trailerKey) {
+    movie.video = {
+      provider: 'youtube',
+      key: movie.trailerKey,
+      url: `https://www.youtube.com/watch?v=${movie.trailerKey}`,
+      verified: true,
+    }
+    return movie
+  }
+
+  const trailer = await resolveTmdbTrailer(movie.imdbId)
+  if (trailer) {
+    movie.trailerKey = trailer.key
+    movie.video = trailer
+  }
+  return movie
 }
 
 async function omdb(params) {
@@ -474,6 +539,8 @@ server.get('/api/search', async (request, response) => {
   try {
     const { q } = request.query
     const query = q ? String(q).trim() : ''
+    const requestedPage = Number.parseInt(request.query.page, 10)
+    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
 
     if (!query) {
       return response.status(400).json({ ok: false, error: 'El parámetro q es requerido.' })
@@ -486,13 +553,12 @@ server.get('/api/search', async (request, response) => {
       })
     }
 
-    const raw = await omdb({ s: query, type: 'movie' })
+    const raw = await omdb({ s: query, type: 'movie', page })
     if (raw.Response !== 'True' || !Array.isArray(raw.Search)) {
       return response.json({ ok: true, query, total: 0, results: [] })
     }
 
-    const maxResults = Math.min(raw.Search.length, 10)
-    const candidates = raw.Search.slice(0, maxResults).map((hit) => ({
+    const candidates = raw.Search.map((hit) => ({
       imdbId: hit.imdbID,
       title: hit.Title || query,
       mood: '',
@@ -505,7 +571,9 @@ server.get('/api/search', async (request, response) => {
     return response.json({
       ok: true,
       query,
+      page,
       total: Number(raw.totalResults) || results.length,
+      hasMore: page * 10 < Number(raw.totalResults || 0),
       results,
     })
   } catch (error) {
@@ -529,6 +597,7 @@ server.get('/api/omdb/:imdbId', async (request, response) => {
     if (!movie) {
       return response.status(404).json({ ok: false, error: 'Película no encontrada en OMDB.' })
     }
+    await attachTrailer(movie)
     omdbCache.set(imdbId, movie)
 
     return response.json({ ok: true, movie })

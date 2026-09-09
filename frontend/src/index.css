@@ -1784,6 +1784,10 @@ svg {
 .search-results {
   padding-bottom: 1rem;
 }
+.search-more {
+  display: block;
+  margin: 1rem auto 0;
+}
 @media (max-width: 640px) {
   .search-panel {
     padding: 1.5rem 1rem;
