@@ -9,6 +9,7 @@ import {
   EyeIcon,
   ShareIcon,
   CloseIcon,
+  ChevronDownIcon,
 } from './icons'
 
 export default function MovieModal({
@@ -22,6 +23,7 @@ export default function MovieModal({
 }) {
   const [playing, setPlaying] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const iframeRef = useRef(null)
 
   useEffect(() => {
@@ -187,7 +189,17 @@ export default function MovieModal({
             </div>
           ) : null}
 
-          {movie.ratings?.length || movie.director?.length || movie.actors?.length ? (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm modal-expand"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+          >
+            {expanded ? 'Ocultar detalles' : 'Ver detalles'}
+            <ChevronDownIcon size={14} style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)' }} />
+          </button>
+
+          {expanded && movie.ratings?.length || movie.director?.length || movie.actors?.length ? (
             <div className="modal-extra">
               {movie.ratings?.length ? (
                 <div className="modal-ratings">

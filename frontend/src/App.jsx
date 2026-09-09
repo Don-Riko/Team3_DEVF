@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { HERO_IMAGE, movies, getMood } from './data'
+import { HERO_IMAGE, movies, getMood, moods } from './data'
 import {
   SearchIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CloseIcon,
+  PlayIcon,
+  SparklesIcon,
 } from './icons'
 import { useAuth } from './AuthContext'
 import { recordMoodSelection } from './auth'
@@ -16,6 +18,7 @@ import {
   searchMovies,
   removeLibraryItem,
   saveLibraryItem,
+  fetchProfile,
 } from './api'
 import MoodPicker from './MoodPicker'
 import MovieCard from './MovieCard'
@@ -26,6 +29,125 @@ import { TypingAnimation } from './components/TypingAnimation'
 // Fallback: películas del catálogo local para el mood seleccionado.
 function moviesForMood(moodId) {
   return movies.filter((m) => m.mood === moodId)
+}
+
+// Mapeo de palabras clave a moods para entrada conversacional
+const MOOD_KEYWORDS = {
+  melancolico: [
+    'melancolico',
+    'triste',
+    'llorar',
+    'lluvia',
+    'silencio',
+    'solitario',
+    'nostalgia',
+    'deprimido',
+    'bajon',
+    'down',
+    'sad',
+  ],
+  energico: [
+    'energico',
+    'accion',
+    'adrenalina',
+    'intenso',
+    'rapido',
+    'explosiones',
+    'peleas',
+    'lucha',
+    'correr',
+    'action',
+    'energy',
+  ],
+  nostalgico: [
+    'nostalgico',
+    'infancia',
+    'pasado',
+    'verano',
+    'recuerdos',
+    'niñez',
+    'antiguo',
+    'clasico',
+    'retro',
+    'vintage',
+    'nostalgic',
+  ],
+  suspenso: [
+    'suspenso',
+    'tension',
+    'misterio',
+    'intriga',
+    'thriller',
+    'sospecha',
+    'enigma',
+    'oscuro',
+    'suspense',
+    'mystery',
+  ],
+  feliz: [
+    'feliz',
+    'alegre',
+    'risas',
+    'comedia',
+    'divertido',
+    'buen rollo',
+    'positivo',
+    'animado',
+    'gracioso',
+    'happy',
+    'comedy',
+    'funny',
+  ],
+  romantico: [
+    'romantico',
+    'amor',
+    'pareja',
+    'enamorado',
+    'cita',
+    'boda',
+    'besos',
+    'corazon',
+    'romance',
+    'love',
+    'romantic',
+  ],
+  aventurero: [
+    'aventurero',
+    'aventura',
+    'viaje',
+    'explorar',
+    'descubrir',
+    'mapa',
+    'expedicion',
+    'selva',
+    'montaña',
+    'adventure',
+    'journey',
+  ],
+  reflexivo: [
+    'reflexivo',
+    'pensar',
+    'profundo',
+    'filosofico',
+    'existencia',
+    'sentido',
+    'vida',
+    'mente',
+    'cerebro',
+    'intelectual',
+    'thoughtful',
+    'deep',
+  ],
+}
+
+function parseMoodFromText(text) {
+  const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  for (const [moodId, keywords] of Object.entries(MOOD_KEYWORDS)) {
+    if (keywords.some((kw) => normalized.includes(kw))) {
+      return moodId
+    }
+  }
+  return null
 }
 
 // Personalidad de animación del glow de fondo según el ánimo elegido: cada
@@ -154,6 +276,7 @@ export default function App() {
 
   // ---- Profile ----
   const [profileOpen, setProfileOpen] = useState(false)
+  const [moodHistory, setMoodHistory] = useState({})
 
   // ---- Buscador OMDB ----
   const [searchOpen, setSearchOpen] = useState(false)
@@ -197,6 +320,21 @@ export default function App() {
     }
   }, [user?.username])
 
+  // Historial de moods para personalizar orden del carrusel
+  useEffect(() => {
+    if (!user?.username) return
+    let cancelled = false
+    fetchProfile(user.username).then((result) => {
+      if (cancelled || !result?.ok) return
+      const histogram = result.profile?.histogram || []
+      const history = Object.fromEntries(histogram.map((h) => [h.mood, h.count]))
+      setMoodHistory(history)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.username])
+
   useEffect(() => {
     try {
       localStorage.setItem(libKey, JSON.stringify(library))
@@ -233,6 +371,14 @@ export default function App() {
     if (nextMood && user?.username) {
       recordMoodSelection(user.username, nextMood)
     }
+  }
+
+  function handlePlayNow() {
+    if (!mood || items.length === 0) return
+    const topMatch = items.reduce((best, current) =>
+      (current.match || 0) > (best.match || 0) ? current : best
+    )
+    setMovie(topMatch)
   }
 
   function openMovie(target) {
@@ -341,7 +487,19 @@ export default function App() {
     rowRef.current.scrollBy({ left: direction * 320, behavior: 'smooth' })
   }
 
-  const items = recs.items
+  const items = useMemo(() => {
+    if (!recs.items.length) return recs.items
+    // Ordenar por frecuencia del mood del usuario (moods más frecuentes primero)
+    return [...recs.items].sort((a, b) => {
+      const moodA = a.mood || mood
+      const moodB = b.mood || mood
+      const countA = moodHistory[moodA] || 0
+      const countB = moodHistory[moodB] || 0
+      if (countA !== countB) return countB - countA
+      // Desempatar por match
+      return (b.match || 0) - (a.match || 0)
+    })
+  }, [recs.items, mood, moodHistory])
 
   return (
     <main className="min-h-screen bg-background">
@@ -501,6 +659,39 @@ export default function App() {
           </div>
           <div className="mood-wrap">
             <MoodPicker value={mood} onChange={handleMoodChange} themed />
+            <div className="mood-text-input">
+              <label htmlFor="mood-text" className="visually-hidden">
+                Describe cómo te sientes
+              </label>
+              <input
+                id="mood-text"
+                type="text"
+                className="mood-text-field"
+                placeholder="Ej: quiero algo tranquilo, necesito reírme, dame suspenso..."
+                aria-label="Describe tu estado de ánimo con tus palabras"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    const detected = parseMoodFromText(event.currentTarget.value)
+                    if (detected) handleMoodChange(detected)
+                    event.currentTarget.value = ''
+                  }
+                }}
+              />
+              <span className="mood-text-hint">
+                <SparklesIcon size={14} /> Escribe con tus palabras
+              </span>
+            </div>
+            {mood && items.length > 0 && !recLoading && (
+              <button
+                type="button"
+                className="btn btn-primary btn-lg play-now"
+                onClick={handlePlayNow}
+                aria-label="Reproducir la mejor coincidencia ahora"
+              >
+                <PlayIcon size={20} fill="currentColor" />
+                Dale play ya
+              </button>
+            )}
           </div>
         </div>
       </section>
