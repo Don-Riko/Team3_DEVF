@@ -82,6 +82,7 @@ export const movies = [
     synopsis:
       'Una traductora nocturna recorre una ciudad que no deja de llover, reconstruyendo la última conversación con su hermano a partir de cintas que él nunca quiso que escuchara.',
     poster: POSTER_1,
+    trailerKey: 'lOYaMF_8OmI',
     badge: 'Exclusiva Midnight',
   },
   {
@@ -97,6 +98,7 @@ export const movies = [
     synopsis:
       'Una mensajera de contrabando digital tiene noventa minutos para cruzar la ciudad entera antes de que el túnel se cierre y su nombre deje de existir.',
     poster: POSTER_2,
+    trailerKey: 'DBHofAezYaU',
     badge: 'Estreno',
   },
   {
@@ -112,6 +114,7 @@ export const movies = [
     synopsis:
       'Tres amigos roban el auto del padre de uno para llegar al mar antes del amanecer. Lo que encuentran en el camino los separa para siempre.',
     poster: POSTER_3,
+    trailerKey: 'DBHofAezYaU',
     badge: '',
   },
   {
@@ -127,6 +130,7 @@ export const movies = [
     synopsis:
       'Un vigilante nocturno descubre que el piso catorce del edificio aparece en los planos pero no en el elevador. Cada noche, el pasillo es un poco más largo.',
     poster: POSTER_4,
+    trailerKey: 'HmhVYO_UGm4',
     badge: 'Top 10 hoy',
   },
   {
@@ -142,6 +146,7 @@ export const movies = [
     synopsis:
       'Cinco vecinos deciden salvar su calle organizando la fiesta más ruidosa e ilegal del barrio. Solo tienen un permiso vencido y demasiadas ganas.',
     poster: POSTER_8,
+    trailerKey: 'sVCJA0U6MyE',
     badge: '',
   },
   {
@@ -157,6 +162,7 @@ export const movies = [
     synopsis:
       'Dos desconocidos quedan atrapados en la azotea de un edificio durante un corte de luz que dura toda la noche. Al amanecer tendrán que decidir si se vuelven a ver.',
     poster: POSTER_5,
+    trailerKey: 'At0u6ZjtTw8',
     badge: 'Favorita del público',
   },
   {
@@ -172,6 +178,7 @@ export const movies = [
     synopsis:
       'Una expedición sin patrocinio intenta trazar la primera ruta por la cara este de una cordillera que los mapas locales evitan nombrar.',
     poster: POSTER_6,
+    trailerKey: 'QVMKFeLtCkE',
     badge: '',
   },
   {
@@ -187,6 +194,7 @@ export const movies = [
     synopsis:
       'El último tripulante de una estación en desmantelamiento recibe un mensaje suyo, grabado siete años antes, con una instrucción que no recuerda haber dado.',
     poster: POSTER_7,
+    trailerKey: 'kSZddHca0ME',
     badge: 'Exclusiva Midnight',
   },
   {
@@ -202,6 +210,7 @@ export const movies = [
     synopsis:
       'Un archivista clasifica las grabaciones caseras de una familia desaparecida y empieza a reconocer su propia voz de niño entre las cintas.',
     poster: POSTER_4,
+    trailerKey: 'owXCx1ebfA0',
     badge: '',
   },
   {
@@ -217,6 +226,7 @@ export const movies = [
     synopsis:
       'Una carrera clandestina se convierte en cacería cuando el premio deja de ser dinero y empieza a ser el mapa de la red eléctrica de la ciudad.',
     poster: POSTER_2,
+    trailerKey: 'z6aMAPndP8Q',
     badge: '',
   },
   {
@@ -232,6 +242,7 @@ export const movies = [
     synopsis:
       'Una fotógrafa regresa al pueblo donde pasó todos sus veranos para vender la casa familiar y termina reconstruyendo un álbum que nunca se terminó.',
     poster: POSTER_3,
+    trailerKey: '6ntUefWpN40',
     badge: '',
   },
   {
@@ -247,6 +258,7 @@ export const movies = [
     synopsis:
       'Un guardafaro acepta un turno de dos meses en total aislamiento y comienza a escribir cartas a alguien que quizá nunca existió.',
     poster: POSTER_7,
+    trailerKey: 'gHcmaoysGMI',
     badge: '',
   },
 ]

@@ -42,6 +42,13 @@ export const SparklesIcon = makeIcon([
   ['circle', { cx: '4', cy: '20', r: '2' }],
 ])
 
+export const PopcornIcon = makeIcon([
+  ['path', { d: 'M5 9h14l-1.5 12h-11z' }],
+  ['path', { d: 'M5 9C3.8 7.7 4.6 5.5 6.4 5.2c.2-2 2.8-2.8 4-1.2 1.1-1.6 3.7-.8 4 1.2 1.8.3 2.6 2.5 1.4 3.8' }],
+  ['path', { d: 'M8 9v12M12 9v12M16 9v12' }],
+  ['path', { d: 'M8 4.8c.8.2 1.3.8 1.5 1.6M13.2 4.8c-.8.2-1.3.8-1.5 1.6' }],
+])
+
 export const StarIcon = makeIcon([
   [
     'path',
@@ -65,6 +72,8 @@ export const PlusIcon = makeIcon([
   ['path', { d: 'M12 5v14' }],
 ])
 
+export const CheckIcon = makeIcon([['path', { d: 'M20 6 9 17l-5-5' }]])
+
 export const ShareIcon = makeIcon([
   ['circle', { cx: '18', cy: '5', r: '3' }],
   ['circle', { cx: '6', cy: '12', r: '3' }],
@@ -77,7 +86,19 @@ export const ChevronLeftIcon = makeIcon([['path', { d: 'm15 18-6-6 6-6' }]])
 
 export const ChevronRightIcon = makeIcon([['path', { d: 'm9 18 6-6-6-6' }]])
 
+export const ChevronDownIcon = makeIcon([['path', { d: 'm6 9 6 6 6-6' }]])
+
+export const EyeIcon = makeIcon([
+  ['path', { d: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z' }],
+  ['circle', { cx: '12', cy: '12', r: '3' }],
+])
+
 export const CloseIcon = makeIcon([
   ['path', { d: 'M18 6 6 18' }],
   ['path', { d: 'm6 6 12 12' }],
+])
+
+export const PauseIcon = makeIcon([
+  ['rect', { x: '6', y: '4', width: '4', height: '16', rx: '1' }],
+  ['rect', { x: '14', y: '4', width: '4', height: '16', rx: '1' }],
 ])

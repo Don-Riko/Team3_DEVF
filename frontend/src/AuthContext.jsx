@@ -1,5 +1,6 @@
 // AuthContext.jsx
 // Estado de sesión del usuario logueado, con persistencia en localStorage.
+// La autenticación la realiza el backend Express contra Supabase.
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { authenticate } from './auth'
 
@@ -33,16 +34,16 @@ export function AuthProvider({ children }) {
       user,
       isAuthenticated: Boolean(user),
       /**
-       * Intenta iniciar sesión validando contra mongo_usr.sql.
-       * @returns {{ok: true} | {ok: false}}
+       * Intenta iniciar sesión validando contra el backend (Supabase).
+       * @returns {Promise<{ok: true} | {ok: false, error?: string}>}
        */
-      login(username, password) {
-        const result = authenticate(username, password)
+      async login(username, password) {
+        const result = await authenticate(username, password)
         if (result.ok) {
           setUser(result.user)
           return { ok: true }
         }
-        return { ok: false }
+        return { ok: false, error: result.error }
       },
       logout() {
         setUser(null)

@@ -1,56 +1,12 @@
 // auth.js
-// Mecanismo TEMPORAL y PRIMITIVO de autenticación.
-// Lee las credenciales desde el archivo mongo_usr.sql (raíz del repo,
-// importado como texto crudo vía Vite ?raw) y las valida contra el
-// formulario de login.
+// Autenticación real de Midnight Cinema & Mood contra el backend Express.
+// El backend valida las credenciales contra la tabla `users` en Supabase.
 //
-// ADVERTENCIA: comparar contraseñas en texto plano en el cliente es
-// SOLO para demo/desarrollo. Sustituir por un backend con hashing
-// cuando exista.
+// Endpoint configurable por entorno:
+//   VITE_ENDPOINT -> URL base de la API (por defecto "/api", servida por
+//                    el proxy de Vite hacia el backend Express).
 
-// El alias @db apunta a ../db (ver vite.config.js).
-import rawSql from '@db/mongo_usr.sql?raw'
-
-// El archivo usa un formato simple clave = valor, por ejemplo:
-//   user = Admin
-//   password = Admin123
-// Parseamos esos pares y los agrupamos en registros de usuario.
-//
-// Este parser también tolera múltiples bloques de user/password
-// (por si en el futuro se agregan más usuarios), agrupando cada vez
-// que aparece una nueva clave `user`.
-function parseCredentials(sql) {
-  const lines = sql.split(/\r?\n/)
-  const users = []
-  let current = null
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('--') || trimmed.startsWith('#')) continue
-
-    const match = trimmed.match(/^(\w+)\s*=\s*(.+?)\s*;?$/)
-    if (!match) continue
-
-    const key = match[1].toLowerCase()
-    const value = match[2].trim()
-
-    if (key === 'user' || key === 'username') {
-      // Nueva entrada de usuario.
-      current = { username: value, password: '' }
-      users.push(current)
-    } else if (key === 'password' || key === 'pass') {
-      if (!current) {
-        current = { username: '', password: '' }
-        users.push(current)
-      }
-      current.password = value
-    }
-  }
-
-  return users.filter((u) => u.username && u.password)
-}
-
-const USERS = parseCredentials(rawSql)
+const ENDPOINT = import.meta.env.VITE_ENDPOINT || '/api'
 
 /**
  * Deriva las iniciales para el avatar a partir del nombre de usuario.
@@ -68,26 +24,58 @@ export function initialsFor(username) {
 }
 
 /**
- * Valida credenciales contra el archivo mongo_usr.sql.
- * Comparación sensible a mayúsculas en la contraseña; el usuario
- * se compara sin distinguir mayúsculas para mayor tolerancia.
- * @returns {{ok: true, user: {username: string, initials: string}} | {ok: false}}
+ * Valida credenciales contra el backend (POST /api/login).
+ * @param {string} username
+ * @param {string} password
+ * @returns {Promise<{ok: true, user: {id, username, initials}} | {ok: false, error?: string}>}
  */
-export function authenticate(username, password) {
-  const found = USERS.find(
-    (u) => u.username.toLowerCase() === String(username).toLowerCase(),
-  )
-  if (!found || found.password !== password) {
-    return { ok: false }
-  }
-  return {
-    ok: true,
-    user: {
-      username: found.username,
-      initials: initialsFor(found.username),
-    },
+export async function authenticate(username, password) {
+  try {
+    const response = await fetch(`${ENDPOINT}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+
+    const data = await response.json().catch(() => null)
+    if (!response.ok || !data?.ok) {
+      return { ok: false, error: data?.error || 'Usuario o contraseña incorrectos.' }
+    }
+
+    return {
+      ok: true,
+      user: {
+        id: data.user.id,
+        username: data.user.username,
+        initials: data.user.initials || initialsFor(data.user.username),
+      },
+    }
+  } catch (error) {
+    console.error('Error al autenticar con el backend:', error)
+    return { ok: false, error: 'No se pudo conectar con el servidor.' }
   }
 }
 
-// Exponer la lista (solo usernames) puede ser útil para debug/demo.
-export const availableUsernames = USERS.map((u) => u.username)
+/**
+ * Registra en el backend la selección de un mood por parte del usuario.
+ * @param {string} username
+ * @param {string} mood
+ * @returns {Promise<{ok: boolean, error?: string}>}
+ */
+export async function recordMoodSelection(username, mood) {
+  try {
+    const response = await fetch(`${ENDPOINT}/mood-selection`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, mood }),
+    })
+    const data = await response.json().catch(() => null)
+    if (!response.ok || !data?.ok) {
+      return { ok: false, error: data?.error || 'No se pudo registrar la selección.' }
+    }
+    return { ok: true }
+  } catch (error) {
+    console.error('Error al registrar el mood:', error)
+    return { ok: false, error: 'No se pudo conectar con el servidor.' }
+  }
+}

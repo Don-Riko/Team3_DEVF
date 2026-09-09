@@ -3,11 +3,12 @@ import { PlayIcon } from './icons'
 
 export default function MovieCard({ movie, onOpen }) {
   const mood = getMood(movie.mood)
+  const accent = mood?.accent ?? 'var(--muted-foreground)'
   return (
     <button
       type="button"
       onClick={() => onOpen(movie)}
-      style={{ '--mood': mood.accent }}
+      style={{ '--mood': accent }}
       className="movie-card"
       aria-label={`Ver detalle de ${movie.title}`}
     >
@@ -26,17 +27,21 @@ export default function MovieCard({ movie, onOpen }) {
         </span>
       </span>
       <span className="movie-info">
-        <span
-          className="mood-pill"
-          style={{
-            color: 'var(--mood)',
-            backgroundColor: 'color-mix(in oklab, var(--mood) 14%, transparent)',
-            boxShadow: 'inset 0 0 0 1px color-mix(in oklab, var(--mood) 35%, transparent)',
-          }}
-        >
-          <span aria-hidden="true">{mood.glyph}</span>
-          {mood.label}
-        </span>
+        {mood ? (
+          <span
+            className="mood-pill"
+            style={{
+              color: 'var(--mood)',
+              backgroundColor: 'color-mix(in oklab, var(--mood) 14%, transparent)',
+              boxShadow: 'inset 0 0 0 1px color-mix(in oklab, var(--mood) 35%, transparent)',
+            }}
+          >
+            <span aria-hidden="true">{mood.glyph}</span>
+            {mood.label}
+          </span>
+        ) : (
+          <span className="movie-title-spacer" />
+        )}
         <span className="movie-title">{movie.title}</span>
         <span className="movie-meta">
           <span className="match">

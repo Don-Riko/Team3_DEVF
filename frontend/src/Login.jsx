@@ -44,7 +44,7 @@ export default function Login() {
     setErrors(result.success ? {} : result.errors)
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
     setTouched({ username: true, password: true })
 
@@ -55,9 +55,9 @@ export default function Login() {
     }
     setErrors({})
 
-    const outcome = login(result.data.username, result.data.password)
+    const outcome = await login(result.data.username, result.data.password)
     if (!outcome.ok) {
-      setAuthError('Usuario o contraseña incorrectos.')
+      setAuthError(outcome.error || 'Usuario o contraseña incorrectos.')
       return
     }
     navigate(from, { replace: true })

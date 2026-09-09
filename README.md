@@ -1,0 +1,366 @@
+# Midnight Cinema & Mood
+
+> *Del ánimo al play en tres clics.*
+
+**Midnight Cinema & Mood** es una aplicación web de recomendación de películas basada en el estado de ánimo del usuario. En lugar de elegir por catálogo, el usuario expresa cómo se siente (melancólico, enérgico, nostálgico, suspenso, feliz, romántico, aventurero o reflexivo) y la app le sugiere películas que sintonizan con ese ánimo.
+
+---
+
+## Fundamentos del Proyecto
+
+### ¿Qué problema intentamos resolver?
+
+La selección de una película suele convertirse en una tarea frustrante: demasiado catálogo, demasiada información y poca conexión con lo que el usuario *realmente* necesita en ese momento. La mayoría de plataformas organizan el contenido por género, popularidad o algoritmo de "gustos históricos", pero ignoran el contexto emocional inmediato.
+
+**Midnight Cinema & Mood propone una experiencia inversa**: partir del estado de ánimo actual del usuario para recomendar narrativas que hagan eco de ese ánimo, en solo tres clics (¿cómo te sientes? → elige tu estado de ánimo → reproduce). Es más cercano a cómo pensamos cuando hablamos de cine entre amigos ("hoy quiero algo tranquilo", "necesito reírme", "dame algo que me haga pensar") que a un buscador tradicional.
+
+### ¿Qué resuelve para el público?
+
+- Reduce la **parálisis de decisión** frente a catálogos infinitos.
+- Propone una experiencia **emotiva y personal**, entendiendo al usuario desde lo que siente, no solo desde datos demográficos.
+- Plantea un MVP minimalista pero con identidad editorial fuerte (películas curadas, estética nocturna, sin spoilers).
+
+### ¿Cómo aplicamos lo aprendido en el curso?
+
+El proyecto integra de forma puntual los conceptos del curso de Frontend:
+
+| Concepto del curso | Aplicación en el proyecto |
+|---|---|
+| **Componentes en React** | Piedra angular del proyecto: `Login`, `MoodPicker`, `MovieCard`, `MovieModal`, `ProfileMenu`, `TypingAnimation`. |
+| **Estado y Context API** | `AuthContext` gestiona la sesión global; se combina con `localStorage` para persistir la autenticación entre recargas. |
+| **Routing con React Router** | Rutas públicas y protegidas (`/login`, `/welcome`) con guardas de redirección (`ProtectedRoute`, `LoginRoute`, `WelcomeRoute`). |
+| **Manejo de formularios y validación** | Formulario de login validado con **Zod** (patrón de solo-alfanuméricos sin repeticiones consecutivas). |
+| **Consumo de APIs / peticiones HTTP** | Cliente `api.js` + `auth.js` que consumen los endpoints del backend Express (`/api/login`, `/api/catalog` con datos reales de **OMDB**, búsqueda por nombre con `/api/search`, biblioteca y perfil). |
+| **Estilos y diseño responsive** | Sistema de diseño propio en `index.css` con variables CSS, `oklch()`, `color-mix()` y breakpoints; animaciones con Framer Motion y CSS. |
+| **Backend y bases de datos** | API REST con **Express 5** conectada a **PostgreSQL (Supabase)** mediante `pg`, con manejo de variables de entorno y `dotenv`. |
+| **Autenticación** | Flujo real de login contra la tabla `users`, con sesión persistente en el cliente. |
+| **Herramientas de desarrollo** | Vite (dev server + HMR + proxy), ESLint, npm scripts (`dev`, `build`, `preview`, `lint`). |
+
+---
+
+## Stack Tecnológico
+
+### Frontend
+
+| Tecnología | Versión | Uso |
+|---|---|---|
+| React | ^19 | UI Library |
+| Vite | ^8 | Build tool / dev server |
+| React Router DOM | ^7 | Enrutamiento client-side |
+| Tailwind CSS | ^4 | Utilidades CSS |
+| Zod | ^4 | Validación de formularios |
+| Motion (Framer Motion) | ^13 | Animaciones |
+
+### Backend
+
+| Tecnología | Versión | Uso |
+|---|---|---|
+| Node.js | v22 | Runtime |
+| Express | ^5 | Framework HTTP (API REST) |
+| pg (node-postgres) | ^8 | Cliente PostgreSQL |
+| dotenv | ^17 | Variables de entorno |
+| cors | ^2 | CORS |
+| nodemon | ^3 | Auto-reload en desarrollo |
+
+### Base de Datos
+
+| Tecnología | Uso |
+|---|---|
+| Supabase (PostgreSQL) | Base de datos hosted (pooler con SSL) |
+
+---
+
+## Estructura del Proyecto
+
+```
+Team3_DEVF/
+├── backend/
+│   ├── .env              # Variables de entorno (Supabase + OMDB_API_KEY)
+│   ├── index.js          # Servidor Express (API completa, archivo único)
+│   └── package.json
+├── db/
+│   └── db.sql            # Schema SQL (tablas users, mood_selections, library_items + seed)
+├── frontend/
+│   ├── public/           # Assets estáticos (posters, hero, íconos)
+│   ├── src/
+│   │   ├── main.jsx      # Entry point (BrowserRouter + AuthProvider)
+│   │   ├── App.jsx       # Componente principal (mood picker + recomendaciones)
+│   │   ├── routes.jsx    # Guardas de ruta (ProtectedRoute, etc.)
+│   │   ├── AuthContext.jsx
+│   │   ├── auth.js       # Llamadas a la API (login, mood-selection)
+│   │   ├── api.js        # Llamadas al catálogo OMDB, biblioteca y perfil
+│   │   ├── catalog.js    # Módulo de catálogo (punto de extensión)
+│   │   ├── Login.jsx     # Página de login
+│   │   ├── loginSchema.js
+│   │   ├── MoodPicker.jsx
+│   │   ├── MovieCard.jsx
+│   │   ├── MovieModal.jsx    # Modal de detalle + reproductor de tráiler (con fallback)
+│   │   ├── ProfileModal.jsx    # Perfil de gusto emocional
+│   │   ├── data.js       # Catálogo local de respaldo: 8 moods + películas (con tráilers libres de derechos)
+│   │   ├── icons.jsx
+│   │   ├── index.css     # Sistema de diseño (variables CSS, responsive)
+│   │   └── components/
+│   │       └── TypingAnimation.jsx
+│   ├── index.html
+│   ├── vite.config.js    # Puerto 5173 + proxy /api -> 127.0.0.1:3000
+│   └── package.json
+└── README.md
+```
+
+---
+
+## Requisitos Previos
+
+- [Node.js](https://nodejs.org/) v18 o superior
+- npm
+- Una cuenta en [Supabase](https://supabase.com/) (para crear el proyecto de base de datos)
+
+---
+
+## Configuración de la Base de Datos
+
+1. Crea un proyecto en Supabase.
+2. Ve al **SQL Editor** > **New Query**.
+3. Copia el contenido de `db/db.sql` y ejecútalo.
+4. Esto creará las tablas `users`, `mood_selections` y `library_items`, e insertará un usuario de demostración.
+
+### Usuario de demostración
+
+| Campo | Valor |
+|---|---|
+| Username | `Admin` |
+| Password | `Admin123` |
+
+---
+
+## Cómo Levantar el Backend
+
+```bash
+# 1. Navegar al directorio del backend
+cd backend
+
+# 2. Instalar dependencias
+npm install
+
+# 3. Crear el archivo .env manualmente
+#    (o renombrar el existente) con estas variables:
+#    PG_CONNECTION_STRING=postgresql://postgres.<tu-proyecto>:<tu-password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+#    SUPABASE_SCHEMA=public
+#    OMDB_API_KEY=<tu-key-de-omdbapi.com>
+#    PORT=3000
+
+# 4. Iniciar en modo desarrollo (con auto-reload)
+npm run dev
+
+# O iniciar en produccion
+npm start
+```
+
+> Obtén la connection string en Supabase: **Settings → Database → Connection string (URI)**. Asegúrate de incluir la contraseña de la base de datos.
+
+El servidor estará disponible en `http://localhost:3000` y, si la configuración es correcta, mostrará el mensaje `Conectado a la base de datos (Supabase)`.
+
+### Endpoints API
+
+| Método | Ruta | Descripción | Body / Query |
+|---|---|---|---|
+| `GET` | `/api/hello` | Health check | - |
+| `POST` | `/api/login` | Autenticar usuario | `{ username, password }` |
+| `POST` | `/api/mood-selection` | Registrar selección de mood | `{ username, mood }` |
+| `GET` | `/api/catalog?mood=X` | Cartelera OMDB dinámica por mood: arma un pool desde las búsquedas de OMDB y lo filtra por el género que sintoniza con el ánimo (datos reales: póster, rating IMDb, duración, género y sinopsis) + tráiler de video garantizado (oficial de YouTube o footage libre de derechos de respaldo) | `mood` |
+| `GET` | `/api/search?q=X` | Busca películas reales por nombre en OMDB, las enriquece con detalle + tráiler y les asigna un mood | `q` |
+| `GET` | `/api/omdb/:imdbId` | Detalle real de una película por IMDb ID | - |
+| `GET` | `/api/library?username=X` | Lista la biblioteca del usuario (watchlist/vistas) | `username` |
+| `POST` | `/api/library` | Agrega/actualiza un ítem de la biblioteca | `{ username, movieId, source, title, poster, year, trailerKey, status }` |
+| `DELETE` | `/api/library` | Quita un ítem de la biblioteca | `username, movieId` |
+| `GET` | `/api/profile/:username` | Histórico emocional + resumen de biblioteca | - |
+
+---
+
+## Cómo Levantar el Frontend
+
+```bash
+# 1. Navegar al directorio del frontend
+cd frontend
+
+# 2. Instalar dependencias
+npm install
+
+# 3. Iniciar el servidor de desarrollo
+npm run dev
+```
+
+El frontend estará disponible en `http://localhost:5173`.
+
+### Scripts Disponibles
+
+| Comando | Descripción |
+|---|---|
+| `npm run dev` | Servidor de desarrollo con HMR |
+| `npm run build` | Build de producción en `dist/` |
+| `npm run preview` | Previsualizar build de producción |
+| `npm run lint` | Ejecutar ESLint |
+
+### Variables de Entorno del Frontend
+
+| Variable | Por defecto | Descripción |
+|---|---|---|
+| `VITE_ENDPOINT` | `/api` | URL base del backend API |
+
+> **Nota:** En modo desarrollo, Vite proxea automáticamente las requests a `/api` hacia `http://127.0.0.1:3000`, por lo que no hay problemas de CORS.
+
+---
+
+## Arquitectura
+
+### Arquitectura implementada
+
+```
+[Browser (React SPA)]  <--proxy /api (Vite)-->  [Express Backend]  <--pg client-->  [Supabase PostgreSQL]
+        |                                               |
+   Puerto 5173                                     Puerto 3000
+   (Vite dev server)                        (API REST + conexión lazy a la BD)
+```
+
+**Niveles de la solución:**
+
+1. **Capa de presentación (Frontend / React SPA):** Interfaz single-page con enrutamiento client-side, autenticación vía Context API + `localStorage`, y catálogo dinámico con fallback local.
+2. **Capa de servicios (Backend / Express):** API REST minimalista en un solo archivo que expone autenticación y registro de interacciones; conexión a la base de datos *lazy* (se abre en el primer request).
+3. **Capa de datos (Supabase/PostgreSQL):** Almacenamiento de usuarios y del historial de selecciones de ánimo por usuario.
+
+**Flujo de datos:**
+
+1. **Login:** El usuario ingresa credenciales → el frontend envía `POST /api/login` → el backend valida contra la tabla `users` → devuelve el objeto de usuario → se almacena en `AuthContext` + `localStorage`.
+2. **Selección de mood:** El usuario hace clic en un mood card → se actualiza el estado local → se envía `POST /api/mood-selection` → el backend registra en `mood_selections`.
+3. **Recomendaciones:** Al elegir un mood, el frontend pide `GET /api/catalog?mood=X` → el backend arma un catálogo dinámico desde OMDB (genera un pool con búsquedas por palabra clave, lo enriquece con el detalle real: póster, rating IMDb, duración y género, y lo filtra por el género que sintoniza con el ánimo) y resuelve el tráiler de YouTube por IMDb ID (`MOVIE_TRAILERS`). Si el título no tiene tráiler oficial mapeado, el backend inyecta `DEFAULT_TRAILER_KEY` (footage cinematográfico libre de derechos) para que todas las películas lleguen con video → el frontend muestra la cartelera. El catálogo queda cacheado para los siguientes clicks. Si OMDB no está disponible, cae al catálogo local (`data.js`), cuyo catálogo también incluye un `trailerKey` libre de derechos por película.
+4. **Búsqueda:** El usuario abre el buscador (icono de lupa en el header), escribe un título y el frontend pide `GET /api/search?q=X` → el backend busca en OMDB (`s=`), enriquece cada resultado con detalle + tráiler y le asigna un mood por su género → el frontend los muestra como tarjetas reproducibles.
+
+### Arquitectura propuesta / a futuro
+
+El MVP actual es de arquitectura simple y de archivo único. La evolución propuesta contempla desacoplar responsabilidades y escalar hacia un producto más robusto:
+
+```
+[Browser (React SPA)]
+      │
+      ├── AuthContext + tokens (JWT)
+      │
+[API Gateway / Express modular]        → estructura de capas:
+      ├── controllers/                 → validación + respuestas HTTP
+      ├── services/                    → lógica de negocio (recomendaciones)
+      ├── repositories/                → consultas SQL (source de datos)
+      └── middleware/                  → auth, rate-limit, logs, errores
+      │
+[PostgreSQL (Supabase)]  ← ORM opcional (Prisma) + migraciones
+      │
+[Servicios externos]     → OMDB API (catálogo real), YouTube (tráilers), OAuth (Google), CDN de posters
+```
+
+Principios de esta arquitectura propuesta:
+
+- **Separación por capas** (controller / service / repository) para testear y mantener el código.
+- **Autenticación real con tokens** (JWT) en lugar de sesión puramente client-side.
+- **Catálogo dinámico** consumiendo la API OMDB en lugar de datos hardcodeados (ya implementado en el MVP).
+- **Enriquecimiento de datos** para alimentar el modelo de recomendación.
+- **Migraciones y versionado de esquema** (Prisma o SQL migratorio) para el ciclo de vida de la BD.
+- **Observabilidad:** logs estructurados, monitoreo y manejo unificado de errores.
+
+---
+
+## Funcionalidades y Proyecciones a Futuro
+
+### Estado actual (MVP)
+
+El MVP demuestra el concepto de punta a punta. Está incompleto por diseño: priorizamos un circuito completo y funcional (login → mood → recomendación → registro) sobre amplitud de features.
+
+- ✅ Sistema de login/registro de usuarios contra una base de datos real (Supabase).
+- ✅ Selector de 8 estados de ánimo con identidad visual propia.
+- ✅ **Catálogo dinámico** con cartelera real vía **OMDB** (pósters, rating IMDb, duración, género y sinopsis reales) y tráilers de YouTube embedidos (autoplay por clic del usuario).
+- ✅ **"Mi biblioteca":** películas guardadas por ver (`watchlist`) y marcadas como vistas (`watched`).
+- ✅ **Perfil de gusto emocional:** histórico personal de moods para detectar patrones.
+- ✅ Recomendaciones curadas por mood con ficha detallada (sinopsis, géneros, match, tráiler).
+- ✅ Sesión persistente y cierre de sesión.
+- ✅ Registro de selecciones históricas en la base de datos.
+
+### Tráilers de video (garantizados)
+
+Todas las películas de la app reproducen un tráiler de video, por sistema y en tres capas:
+
+1. **Catálogo local (`frontend/src/data.js`):** cada una de las 12 películas ficticias incluye un `trailerKey` (video ID de YouTube) con una pieza de **footage cinematográfico libre de derechos** acorde al ánimo del título (ciudad nocturna, moto urbana, niebla, confeti, estrellas, etc.). Como las películas son ficticias no existe un tráiler oficial real, por eso se usan videos sin copyright curados por mood.
+2. **Catálogo OMDB (`backend/index.js`):** los títulos reales se resuelven por IMDb ID en `MOVIE_TRAILERS` con su tráiler oficial de YouTube; si un título no está mapeado, el backend inyecta `DEFAULT_TRAILER_KEY` (footage libre de derechos) para que ninguna película llegue al frontend sin video.
+3. **Reproductor (`frontend/src/MovieModal.jsx`):** si por cualquier motivo un objeto de película llega sin `trailerKey` (por ejemplo, un ítem de biblioteca guardado antes con la columna vacía), el modal usa `FALLBACK_TRAILER_KEY`. El botón "Reproducir tráiler" siempre reproduce un video libre de derechos.
+
+El reproductor embebe YouTube (`https://www.youtube.com/embed/{id}?autoplay=1&rel=0`) y el `trailer_key` se persiste en la tabla `library_items` para que el tráiler también se reproduzca desde la biblioteca.
+
+### Proyecciones a futuro
+
+Estas son las líneas de trabajo planteadas para llevar el MVP a un producto completo:
+
+**Producto y contenido**
+- 🎬 Algoritmos de recomendación por embeddings de gustos y desempates por rating/crítica.
+
+**Cuenta y seguridad**
+- 🔐 **Registro de nuevos usuarios** (hoy solo existe el usuario demo `Admin`).
+- 🛡️ **Hash de contraseñas** (bcrypt/argon2) y autenticación con **JWT** + refresh.
+- 🔑 **OAuth con Google/Apple** para ingreso social.
+
+**Experiencia de usuario**
+- 📱 **App progresiva (PWA)** para instalarla en el celular.
+- 🌙 **Modo "Midnight" mejorado:** temas, accesibilidad y soporte para daltonismo.
+- ⏱️ **Persistencia de sesión corta vs. larga** ("recuérdame en este dispositivo").
+
+**Backend y datos**
+- 🧬 **Motor de recomendaciones** basado en historial real (`mood_selections`) en lugar de reglas fijas.
+- 🔄 **Migraciones de esquema** y permisos de nivel fila (RLS) en Supabase.
+- 🧪 **Suite de tests** unitarios y de integración (hoy el backend no tiene ninguno).
+- 📊 **Dashboard básico** de métricas de uso (moods más elegidos, películas top).
+
+---
+
+## Rutas
+
+| Ruta | Componente | Acceso |
+|---|---|---|
+| `/login` | Login | Pública (redirige a `/welcome` si ya está autenticado) |
+| `/welcome` | App (MoodPicker + Recomendaciones) | Protegida (redirige a `/login` si no está autenticado) |
+| `/` | Redirect a `/welcome` | - |
+
+---
+
+## Base de Datos
+
+### Tablas
+
+**`users`**
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | uuid | PK, auto-generado |
+| `username` | text | Único, not null |
+| `password` | text | Contraseña (seed en texto plano) |
+| `initials` | text | Iniciales del usuario |
+| `created_at` | timestamptz | Fecha de creación |
+
+**`mood_selections`**
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | uuid | PK, auto-generado |
+| `user_id` | uuid | FK → users(id), cascade on delete |
+| `mood` | text | Mood seleccionado |
+| `created_at` | timestamptz | Fecha de selección |
+
+**`library_items`**
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | uuid | PK, auto-generado |
+| `user_id` | uuid | FK → users(id), cascade on delete |
+| `movie_id` | text | ID de la película (`omdb-tt1234567` o id local) |
+| `source` | text | Origen del ítem (`omdb` / `catalog`) |
+| `title` | text | Título guardado |
+| `poster` | text | URL del póster |
+| `year` | text | Año |
+| `trailer_key` | text | Video ID de YouTube del tráiler o del footage libre de derechos de respaldo (persistido para reproducirlo desde la biblioteca) |
+| `status` | text | `watchlist` o `watched` |
+| `created_at` | timestamptz | Fecha de registro |
+| — | — | `unique (user_id, movie_id)` |
