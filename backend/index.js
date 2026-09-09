@@ -1452,18 +1452,22 @@ server.get('/api/profile/:username', async (request, response) => {
   }
 })
 
-server.listen(PORT, async () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`)
-  try {
-    await ensureConnection()
-    console.log('Conectado a la base de datos (Supabase)')
-  } catch (error) {
-    console.warn('No se pudo conectar a Supabase:', error.message)
-    console.warn('Verifica PG_CONNECTION_STRING en el archivo .env')
-  }
-  if (!OMDB_KEY) {
-    console.warn('OMDB_API_KEY no configurada: la cartelera usará el catálogo local.')
-  }
-})
+// En Vercel (serverless) NO se debe llamar a listen(): la plataforma invoca
+// la app exportada como función. Solo escuchamos en local / entornos propios.
+if (!process.env.VERCEL) {
+  server.listen(PORT, async () => {
+    console.log(`Servidor corriendo en el puerto ${PORT}`)
+    try {
+      await ensureConnection()
+      console.log('Conectado a la base de datos (Supabase)')
+    } catch (error) {
+      console.warn('No se pudo conectar a Supabase:', error.message)
+      console.warn('Verifica PG_CONNECTION_STRING en el archivo .env')
+    }
+    if (!OMDB_KEY) {
+      console.warn('OMDB_API_KEY no configurada: la cartelera usará el catálogo local.')
+    }
+  })
+}
 
 module.exports = server
