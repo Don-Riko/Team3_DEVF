@@ -19,9 +19,15 @@ const server = express()
 
 // Cliente compartido de Postgres (Supabase). La conexión es lazy:
 // se abre en el primer request para no fallar al arrancar sin red/credenciales.
-const client = new pg.Client({
+// Se usa un Pool (no un Client único): en entornos serverless (Vercel) cada
+// invocacion puede reutilizar o abrir conexiones cortas sin quedar atada a un
+// unico socket, evitando errores de "connection terminated". pool.query() toma
+// y libera una conexion del pool automaticamente.
+const pool = new pg.Pool({
   connectionString: process.env.PG_CONNECTION_STRING,
   connectionTimeoutMillis: 10000,
+  max: Number(process.env.PG_POOL_MAX) || 5,
+  idleTimeoutMillis: 30000,
   ssl: {
     rejectUnauthorized: false
   }
@@ -886,8 +892,11 @@ server.use(express.json())
 
 // Abre la conexión a Supabase una sola vez y la reutiliza.
 async function ensureConnection() {
+  // Con Pool no se mantiene una conexion abierta; se valida que el pool pueda
+  // obtener una (y se libera de inmediato). Se cachea la promesa para no
+  // repetir el chequeo en cada request.
   if (!clientConnectionPromise) {
-    clientConnectionPromise = client.connect().catch((error) => {
+    clientConnectionPromise = pool.query('SELECT 1').catch((error) => {
       clientConnectionPromise = null
       throw error
     })
@@ -912,12 +921,10 @@ server.post('/api/login', async (request, response) => {
 
     await ensureConnection()
 
-    const result = await client.query(
-      `SELECT id, username, initials FROM ${DATABASE_SCHEMA}.users
-       WHERE LOWER(username) = LOWER($1) AND password = $2
-       LIMIT 1`,
-      [username, password],
-    )
+    const result = await pool.query(`SELECT id, username, initials FROM ${DATABASE_SCHEMA}.users
+     WHERE LOWER(username) = LOWER($1) AND password = $2
+     LIMIT 1`,
+    [username, password],)
 
     if (result.rows.length === 0) {
       return response.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos.' })
@@ -944,19 +951,15 @@ server.post('/api/mood-selection', async (request, response) => {
 
     await ensureConnection()
 
-    const userResult = await client.query(
-      `SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
-      [username],
-    )
+    const userResult = await pool.query(`SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+    [username],)
     if (userResult.rows.length === 0) {
       return response.status(404).json({ ok: false, error: 'Usuario no encontrado.' })
     }
 
     const userId = userResult.rows[0].id
-    const insertResult = await client.query(
-      `INSERT INTO ${DATABASE_SCHEMA}.mood_selections (user_id, mood) VALUES ($1, $2) RETURNING id, user_id, mood, created_at`,
-      [userId, mood],
-    )
+    const insertResult = await pool.query(`INSERT INTO ${DATABASE_SCHEMA}.mood_selections (user_id, mood) VALUES ($1, $2) RETURNING id, user_id, mood, created_at`,
+    [userId, mood],)
 
     return response.status(201).json({ ok: true, selection: insertResult.rows[0] })
   } catch (error) {
@@ -1278,21 +1281,17 @@ server.get('/api/library', async (request, response) => {
 
     await ensureConnection()
 
-    const userResult = await client.query(
-      `SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
-      [username],
-    )
+    const userResult = await pool.query(`SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+    [username],)
     if (userResult.rows.length === 0) {
       return response.json({ ok: true, items: [] })
     }
 
-    const result = await client.query(
-      `SELECT movie_id, source, title, poster, year, trailer_key, status, created_at
-       FROM ${DATABASE_SCHEMA}.library_items
-       WHERE user_id = $1
-       ORDER BY created_at DESC`,
-      [userResult.rows[0].id],
-    )
+    const result = await pool.query(`SELECT movie_id, source, title, poster, year, trailer_key, status, created_at
+     FROM ${DATABASE_SCHEMA}.library_items
+     WHERE user_id = $1
+     ORDER BY created_at DESC`,
+    [userResult.rows[0].id],)
 
     return response.json({ ok: true, items: result.rows })
   } catch (error) {
@@ -1315,36 +1314,32 @@ server.post('/api/library', async (request, response) => {
 
     await ensureConnection()
 
-    const userResult = await client.query(
-      `SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
-      [username],
-    )
+    const userResult = await pool.query(`SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+    [username],)
     if (userResult.rows.length === 0) {
       return response.status(404).json({ ok: false, error: 'Usuario no encontrado.' })
     }
 
-    await client.query(
-      `INSERT INTO ${DATABASE_SCHEMA}.library_items
-         (user_id, movie_id, source, title, poster, year, trailer_key, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (user_id, movie_id) DO UPDATE SET
-         source = EXCLUDED.source,
-         title = EXCLUDED.title,
-         poster = EXCLUDED.poster,
-         year = EXCLUDED.year,
-         trailer_key = EXCLUDED.trailer_key,
-         status = EXCLUDED.status`,
-      [
-        userResult.rows[0].id,
-        movieId,
-        source || 'catalog',
-        title || '',
-        poster || '',
-        year || '',
-        trailerKey || '',
-        status || 'watchlist',
-      ],
-    )
+    await pool.query(`INSERT INTO ${DATABASE_SCHEMA}.library_items
+       (user_id, movie_id, source, title, poster, year, trailer_key, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (user_id, movie_id) DO UPDATE SET
+       source = EXCLUDED.source,
+       title = EXCLUDED.title,
+       poster = EXCLUDED.poster,
+       year = EXCLUDED.year,
+       trailer_key = EXCLUDED.trailer_key,
+       status = EXCLUDED.status`,
+    [
+      userResult.rows[0].id,
+      movieId,
+      source || 'catalog',
+      title || '',
+      poster || '',
+      year || '',
+      trailerKey || '',
+      status || 'watchlist',
+    ],)
 
     return response.status(201).json({ ok: true })
   } catch (error) {
@@ -1364,18 +1359,14 @@ server.delete('/api/library', async (request, response) => {
 
     await ensureConnection()
 
-    const userResult = await client.query(
-      `SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
-      [username],
-    )
+    const userResult = await pool.query(`SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+    [username],)
     if (userResult.rows.length === 0) {
       return response.json({ ok: true })
     }
 
-    await client.query(
-      `DELETE FROM ${DATABASE_SCHEMA}.library_items WHERE user_id = $1 AND movie_id = $2`,
-      [userResult.rows[0].id, movieId],
-    )
+    await pool.query(`DELETE FROM ${DATABASE_SCHEMA}.library_items WHERE user_id = $1 AND movie_id = $2`,
+    [userResult.rows[0].id, movieId],)
 
     return response.json({ ok: true })
   } catch (error) {
@@ -1395,10 +1386,8 @@ server.get('/api/profile/:username', async (request, response) => {
 
     await ensureConnection()
 
-    const userResult = await client.query(
-      `SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
-      [username],
-    )
+    const userResult = await pool.query(`SELECT id FROM ${DATABASE_SCHEMA}.users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+    [username],)
     if (userResult.rows.length === 0) {
       return response.status(404).json({ ok: false, error: 'Usuario no encontrado.' })
     }
@@ -1406,29 +1395,23 @@ server.get('/api/profile/:username', async (request, response) => {
     const userId = userResult.rows[0].id
 
     const [histogramResult, recentResult, libraryResult] = await Promise.all([
-      client.query(
-        `SELECT mood, count(*)::int AS count
-         FROM ${DATABASE_SCHEMA}.mood_selections
-         WHERE user_id = $1
-         GROUP BY mood
-         ORDER BY count DESC`,
-        [userId],
-      ),
-      client.query(
-        `SELECT mood, created_at
-         FROM ${DATABASE_SCHEMA}.mood_selections
-         WHERE user_id = $1
-         ORDER BY created_at DESC
-         LIMIT 20`,
-        [userId],
-      ),
-      client.query(
-        `SELECT status, count(*)::int AS count
-         FROM ${DATABASE_SCHEMA}.library_items
-         WHERE user_id = $1
-         GROUP BY status`,
-        [userId],
-      ),
+      pool.query(`SELECT mood, count(*)::int AS count
+       FROM ${DATABASE_SCHEMA}.mood_selections
+       WHERE user_id = $1
+       GROUP BY mood
+       ORDER BY count DESC`,
+      [userId],),
+      pool.query(`SELECT mood, created_at
+       FROM ${DATABASE_SCHEMA}.mood_selections
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [userId],),
+      pool.query(`SELECT status, count(*)::int AS count
+       FROM ${DATABASE_SCHEMA}.library_items
+       WHERE user_id = $1
+       GROUP BY status`,
+      [userId],),
     ])
 
     const histogram = histogramResult.rows.map((row) => ({ mood: row.mood, count: row.count }))
