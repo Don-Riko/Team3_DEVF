@@ -89,7 +89,7 @@ Team3_DEVF/
 │   │   ├── AuthContext.jsx
 │   │   ├── auth.js       # Llamadas a la API (login, mood-selection)
 │   │   ├── api.js        # Llamadas al catálogo OMDB, biblioteca y perfil
-│   │   ├── catalog.js    # Utilidades de catálogo (tráilers YouTube)
+│   │   ├── catalog.js    # Módulo de catálogo (punto de extensión)
 │   │   ├── Login.jsx     # Página de login
 │   │   ├── loginSchema.js
 │   │   ├── MoodPicker.jsx
@@ -167,10 +167,10 @@ El servidor estará disponible en `http://localhost:3000` y, si la configuració
 | `GET` | `/api/hello` | Health check | - |
 | `POST` | `/api/login` | Autenticar usuario | `{ username, password }` |
 | `POST` | `/api/mood-selection` | Registrar selección de mood | `{ username, mood }` |
-| `GET` | `/api/catalog?mood=X` | Cartelera OMDB curada por mood (datos reales: póster, rating IMDb, duración, género, sinopsis) | `mood` |
+| `GET` | `/api/catalog?mood=X` | Cartelera OMDB curada por mood (datos reales: póster, rating IMDb, duración, género, sinopsis y tráiler oficial de YouTube) | `mood` |
 | `GET` | `/api/omdb/:imdbId` | Detalle real de una película por IMDb ID | - |
 | `GET` | `/api/library?username=X` | Lista la biblioteca del usuario (watchlist/vistas) | `username` |
-| `POST` | `/api/library` | Agrega/actualiza un ítem de la biblioteca | `{ username, movieId, source, title, poster, year, status }` |
+| `POST` | `/api/library` | Agrega/actualiza un ítem de la biblioteca | `{ username, movieId, source, title, poster, year, trailerKey, status }` |
 | `DELETE` | `/api/library` | Quita un ítem de la biblioteca | `username, movieId` |
 | `GET` | `/api/profile/:username` | Histórico emocional + resumen de biblioteca | - |
 
@@ -231,7 +231,7 @@ El frontend estará disponible en `http://localhost:5173`.
 
 1. **Login:** El usuario ingresa credenciales → el frontend envía `POST /api/login` → el backend valida contra la tabla `users` → devuelve el objeto de usuario → se almacena en `AuthContext` + `localStorage`.
 2. **Selección de mood:** El usuario hace clic en un mood card → se actualiza el estado local → se envía `POST /api/mood-selection` → el backend registra en `mood_selections`.
-3. **Recomendaciones:** Al elegir un mood, el frontend pide `GET /api/catalog?mood=X` → el backend enriquece el catálogo curado de ese ánimo con datos reales de OMDB (póster, rating IMDb, duración, género) → el frontend muestra la cartelera. Si OMDB no está disponible, cae al catálogo local (`data.js`).
+3. **Recomendaciones:** Al elegir un mood, el frontend pide `GET /api/catalog?mood=X` → el backend enriquece el catálogo curado de ese ánimo con datos reales de OMDB (póster, rating IMDb, duración, género) y resuelve el tráiler oficial de YouTube por IMDb ID (`MOVIE_TRAILERS`) → el frontend muestra la cartelera. Si OMDB no está disponible, cae al catálogo local (`data.js`).
 
 ### Arquitectura propuesta / a futuro
 
@@ -272,7 +272,7 @@ El MVP demuestra el concepto de punta a punta. Está incompleto por diseño: pri
 
 - ✅ Sistema de login/registro de usuarios contra una base de datos real (Supabase).
 - ✅ Selector de 8 estados de ánimo con identidad visual propia.
-- ✅ **Catálogo dinámico** con cartelera real vía **OMDB** (pósters, rating IMDb, duración, género y sinopsis reales) y tráilers de YouTube.
+- ✅ **Catálogo dinámico** con cartelera real vía **OMDB** (pósters, rating IMDb, duración, género y sinopsis reales) y tráilers de YouTube oficialmente embedidos (autoplay por clic del usuario).
 - ✅ **"Mi biblioteca":** películas guardadas por ver (`watchlist`) y marcadas como vistas (`watched`).
 - ✅ **Perfil de gusto emocional:** histórico personal de moods para detectar patrones.
 - ✅ Recomendaciones curadas por mood con ficha detallada (sinopsis, géneros, match, tráiler).
@@ -348,6 +348,7 @@ Estas son las líneas de trabajo planteadas para llevar el MVP a un producto com
 | `title` | text | Título guardado |
 | `poster` | text | URL del póster |
 | `year` | text | Año |
+| `trailer_key` | text | Video ID de YouTube del tráiler (persistido para reproducirlo desde la biblioteca) |
 | `status` | text | `watchlist` o `watched` |
 | `created_at` | timestamptz | Fecha de registro |
 | — | — | `unique (user_id, movie_id)` |
