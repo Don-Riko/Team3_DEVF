@@ -42,6 +42,13 @@ export const SparklesIcon = makeIcon([
   ['circle', { cx: '4', cy: '20', r: '2' }],
 ])
 
+export const PopcornIcon = makeIcon([
+  ['path', { d: 'M5 9h14l-1.5 12h-11z' }],
+  ['path', { d: 'M5 9C3.8 7.7 4.6 5.5 6.4 5.2c.2-2 2.8-2.8 4-1.2 1.1-1.6 3.7-.8 4 1.2 1.8.3 2.6 2.5 1.4 3.8' }],
+  ['path', { d: 'M8 9v12M12 9v12M16 9v12' }],
+  ['path', { d: 'M8 4.8c.8.2 1.3.8 1.5 1.6M13.2 4.8c-.8.2-1.3.8-1.5 1.6' }],
+])
+
 export const StarIcon = makeIcon([
   [
     'path',

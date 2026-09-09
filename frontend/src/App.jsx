@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from 'motion/react'
 import { HERO_IMAGE, movies, getMood } from './data'
 import {
   SearchIcon,
-  SparklesIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CloseIcon,
@@ -108,6 +107,15 @@ function ProfileMenu({ onOpenProfile }) {
             onClick={handleProfile}
           >
             Mi perfil de gustos
+          </button>
+
+          <button
+            type="button"
+            className="profile-menu-item"
+            role="menuitem"
+            onClick={() => alert('Configuración')}
+          >
+            Configuración
           </button>
           <button
             type="button"
@@ -339,14 +347,9 @@ export default function App() {
     <main className="min-h-screen bg-background">
       <header className="site-header">
         <div className="container header-inner">
-          <a href="/" className="brand">
-            <span aria-hidden="true" className="brand-mark">
-              <SparklesIcon size={16} />
-            </span>
-            <span className="brand-text">
-              Midnight<span className="brand-dim"> Cinema &amp; Mood</span>
-            </span>
-          </a>
+          
+            
+          
 
           <nav className="main-nav" aria-label="Navegación principal">
             <a href="#moods">Moods</a>
@@ -369,6 +372,15 @@ export default function App() {
         </div>
       </header>
 
+      <section className="brand-banner" aria-label="Midnight Cinema & Mood">
+        <div className="brand-banner-inner">
+          <span className="brand-banner-popcorn">
+            <img src="/imagenes/palomita.png" alt="Palomitas de cine" />
+          </span>
+          <h1>Midnight Cinema &amp; Mood</h1>
+        </div>
+      </section>
+
       {searchOpen ? (
         <div
           className="search-overlay"
@@ -390,8 +402,7 @@ export default function App() {
             <span className="recs-step">Buscador de cartelera</span>
             <h2 className="search-title">Busca una película por nombre</h2>
             <p className="search-sub">
-              Consulta el catálogo real de OMDB con la API: escribe el título y cada
-              resultado trae su tráiler para reproducir aquí mismo.
+              Consulta del catálogo real de OMDB con la utilización de su API.
             </p>
             <form className="search-form" onSubmit={handleSearchSubmit}>
               <input
@@ -467,13 +478,25 @@ export default function App() {
           aria-hidden="true"
         />
         <div aria-hidden="true" className="hero-bg--fade" />
+        <AnimatePresence mode="wait">
+          {mood ? (
+            <motion.div
+              key={mood}
+              aria-hidden="true"
+              className={`hero-mood-scene hero-mood-scene--${mood}`}
+              initial={{ opacity: 0, scale: 1.12 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.08 }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            />
+          ) : null}
+        </AnimatePresence>
         <div className="container hero-inner">
           <div className="hero-copy">
-            <span className="step-badge">Paso 1 de 3 · Descubrimiento por ánimo</span>
+            <span className="step-badge">Paso 1 de 3 · Descubrimiento por estado de ánimo</span>
             <h1 className="hero-title">¿Cómo te sientes hoy?</h1>
             <p className="hero-desc">
-              Elige un estado de ánimo y armamos la sala: recomendaciones curadas para esa
-              emoción exacta, listas para reproducir en tres clics.
+              Elige tu estado de ánimo y descubre diferentes recomendaciones de peliculas listas para ver.
             </p>
           </div>
           <div className="mood-wrap">
@@ -556,7 +579,7 @@ export default function App() {
             ) : items.length === 0 ? (
               <div className="empty">
                 <p className="empty-title">Sin títulos por ahora</p>
-                <p className="empty-sub">Intenta con otro ánimo.</p>
+                <p className="empty-sub">Intenta con otro estado de ánimo.</p>
               </div>
             ) : (
               <div id="movie-row" className="movie-row no-scrollbar" ref={rowRef}>
@@ -679,8 +702,8 @@ export default function App() {
 
       <footer className="site-footer">
         <div className="container footer-inner">
-          <p>Midnight Cinema &amp; Mood · Cine curado por emoción</p>
-          <p>Del ánimo al play en tres clics.</p>
+          <p>Midnight Cinema &amp; Mood · Cine exacto para todo tipo de emoción.</p>
+          <p>Elige tu peli y dale play en tres clics.</p>
         </div>
       </footer>
 
