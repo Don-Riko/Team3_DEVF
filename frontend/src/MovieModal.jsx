@@ -1,18 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getMood } from './data'
 import {
   StarIcon,
   PlayIcon,
+  PauseIcon,
   PlusIcon,
   CheckIcon,
   EyeIcon,
   ShareIcon,
   CloseIcon,
 } from './icons'
-
-// Tráiler por defecto: footage cinematográfico libre de derechos que se usa
-// como respaldo para que ninguna película se quede sin video reproducible.
-const FALLBACK_TRAILER_KEY = 'lOYaMF_8OmI'
 
 export default function MovieModal({
   movie,
@@ -24,6 +21,8 @@ export default function MovieModal({
   onToggleWatched,
 }) {
   const [playing, setPlaying] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const iframeRef = useRef(null)
 
   useEffect(() => {
     if (!open || !movie) return undefined
@@ -38,14 +37,52 @@ export default function MovieModal({
     }
   }, [open, movie, onOpenChange])
 
+  // Al cambiar de película se resetea el reproductor (evita arrastrar el
+  // estado de pausa de un tráiler al siguiente).
+  useEffect(() => {
+    setPlaying(false)
+    setPaused(false)
+  }, [movie?.id])
+
   if (!movie) return null
   const mood = getMood(movie.mood)
 
-  const trailerKey = movie.trailerKey || FALLBACK_TRAILER_KEY
-  const trailerUrl = `https://www.youtube.com/embed/${trailerKey}?autoplay=1&rel=0`
+  // Solo se arma una URL de tráiler si es un video VERIFICADO para esta
+  // película (movie.trailerKey). Nunca se sustituye por un video genérico:
+  // si no hay tráiler verificado se ofrece movie.trailerSearchUrl en su lugar.
+  const hasTrailer = Boolean(movie.trailerKey)
+  const trailerUrl = hasTrailer
+    ? `https://www.youtube.com/embed/${movie.trailerKey}?autoplay=1&rel=0&enablejsapi=1`
+    : ''
+
+  // Controla el iframe de YouTube vía postMessage (YouTube IFrame API),
+  // sin necesidad de cargar el script completo de la API.
+  function sendPlayerCommand(func) {
+    iframeRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: 'command', func, args: [] }),
+      'https://www.youtube.com',
+    )
+  }
 
   function handlePlay() {
-    setPlaying((value) => !value)
+    if (!hasTrailer) return
+    if (!playing) {
+      setPlaying(true)
+      setPaused(false)
+      return
+    }
+    // Ya está reproduciéndose: el botón principal cierra el tráiler.
+    setPlaying(false)
+    setPaused(false)
+  }
+
+  function handleTogglePause() {
+    if (!playing) return
+    setPaused((value) => {
+      const next = !value
+      sendPlayerCommand(next ? 'pauseVideo' : 'playVideo')
+      return next
+    })
   }
 
   return (
@@ -74,15 +111,20 @@ export default function MovieModal({
           {playing && trailerUrl ? (
             <div className="modal-video">
               <iframe
+                ref={iframeRef}
                 src={trailerUrl}
                 title={`Tráiler de ${movie.title}`}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
               />
-            </div>
-          ) : playing ? (
-            <div className="modal-video modal-video-empty">
-              <p>Tráiler no disponible para este título.</p>
+              <button
+                type="button"
+                className="video-pause-btn"
+                onClick={handleTogglePause}
+                aria-label={paused ? 'Reanudar tráiler' : 'Pausar tráiler'}
+              >
+                {paused ? <PlayIcon size={20} fill="currentColor" /> : <PauseIcon size={20} fill="currentColor" />}
+              </button>
             </div>
           ) : (
             <img
@@ -149,16 +191,66 @@ export default function MovieModal({
             </div>
           ) : null}
 
+          {movie.ratings?.length || movie.director?.length || movie.actors?.length ? (
+            <div className="modal-extra">
+              {movie.ratings?.length ? (
+                <div className="modal-ratings">
+                  {movie.ratings.map((r) => (
+                    <span key={r.source} className="rating-pill">
+                      {r.source}: {r.value}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {movie.director?.length ? (
+                <p className="modal-credit">
+                  <strong>Dirección:</strong> {movie.director.join(', ')}
+                </p>
+              ) : null}
+              {movie.actors?.length ? (
+                <p className="modal-credit">
+                  <strong>Reparto:</strong> {movie.actors.join(', ')}
+                </p>
+              ) : null}
+              {movie.awards ? (
+                <p className="modal-credit">
+                  <strong>Premios:</strong> {movie.awards}
+                </p>
+              ) : null}
+              {movie.boxOffice ? (
+                <p className="modal-credit">
+                  <strong>Taquilla:</strong> {movie.boxOffice}
+                </p>
+              ) : null}
+              {movie.country?.length ? (
+                <p className="modal-credit">
+                  <strong>País:</strong> {movie.country.join(', ')}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="modal-actions">
-            <button
-              type="button"
-              className="btn btn-primary btn-lg"
-              onClick={handlePlay}
-              disabled={!trailerUrl && !playing}
-            >
-              <PlayIcon size={20} fill="currentColor" />
-              {!trailerUrl ? 'Tráiler no disponible' : playing ? 'Cerrar tráiler' : 'Reproducir tráiler'}
-            </button>
+            {hasTrailer ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-lg"
+                onClick={handlePlay}
+              >
+                <PlayIcon size={20} fill="currentColor" />
+                {playing ? 'Cerrar tráiler' : 'Reproducir tráiler'}
+              </button>
+            ) : (
+              <a
+                href={movie.trailerSearchUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="btn btn-secondary btn-lg"
+              >
+                <PlayIcon size={20} fill="currentColor" />
+                Buscar tráiler en YouTube
+              </a>
+            )}
             <button
               type="button"
               className={`btn btn-secondary btn-lg${inList ? ' btn-in-list' : ''}`}

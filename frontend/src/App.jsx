@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import { HERO_IMAGE, movies, getMood } from './data'
 import {
   SearchIcon,
@@ -26,6 +27,21 @@ import { TypingAnimation } from './components/TypingAnimation'
 // Fallback: películas del catálogo local para el mood seleccionado.
 function moviesForMood(moodId) {
   return movies.filter((m) => m.mood === moodId)
+}
+
+// Personalidad de animación del glow de fondo según el ánimo elegido: cada
+// mood "respira" distinto (energico es rápido y marcado, reflexivo es lento
+// y sutil), para que la transición se sienta ligada a la emoción, no solo al
+// color.
+const MOOD_MOTION = {
+  melancolico: { scale: [1, 1.06, 1], opacity: [0.28, 0.5, 0.28], duration: 6 },
+  energico: { scale: [1, 1.22, 1], opacity: [0.45, 0.85, 0.45], duration: 1.3 },
+  nostalgico: { scale: [1, 1.05, 1], opacity: [0.25, 0.45, 0.25], duration: 5 },
+  suspenso: { scale: [1, 1.12, 0.97, 1], opacity: [0.25, 0.6, 0.3, 0.25], duration: 3.2 },
+  feliz: { scale: [1, 1.16, 1], opacity: [0.4, 0.75, 0.4], duration: 1.8 },
+  romantico: { scale: [1, 1.08, 1], opacity: [0.3, 0.58, 0.3], duration: 4.2 },
+  aventurero: { scale: [1, 1.2, 1], opacity: [0.35, 0.68, 0.35], duration: 2.4 },
+  reflexivo: { scale: [1, 1.04, 1], opacity: [0.25, 0.42, 0.25], duration: 7 },
 }
 
 // Botón de perfil con las iniciales del usuario y un dropdown de acciones.
@@ -431,6 +447,27 @@ export default function App() {
       </section>
 
       <section id="recomendaciones" className="container recs">
+        <AnimatePresence>
+          {mood ? (
+            <motion.div
+              key={mood}
+              aria-hidden="true"
+              className="recs-mood-glow"
+              style={{ '--mood': moodMeta?.accent }}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{
+                opacity: MOOD_MOTION[mood]?.opacity ?? [0.3, 0.55, 0.3],
+                scale: MOOD_MOTION[mood]?.scale ?? [1, 1.08, 1],
+              }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              transition={{
+                duration: MOOD_MOTION[mood]?.duration ?? 4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+            />
+          ) : null}
+        </AnimatePresence>
         {mood ? (
           <div className="recs-reveal" key={mood}>
             <div className="recs-head">
@@ -589,6 +626,9 @@ export default function App() {
                     synopsis: 'Película guardada en tu biblioteca.',
                     poster: item.poster || '/poster-placeholder.svg',
                     trailerKey: item.trailerKey || null,
+                    trailerSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(
+                      `${item.title} ${item.year || ''} official trailer`.trim(),
+                    )}`,
                     badge: '',
                   }
               return (

@@ -88,3 +88,8 @@ export const CloseIcon = makeIcon([
   ['path', { d: 'M18 6 6 18' }],
   ['path', { d: 'm6 6 12 12' }],
 ])
+
+export const PauseIcon = makeIcon([
+  ['rect', { x: '6', y: '4', width: '4', height: '16', rx: '1' }],
+  ['rect', { x: '14', y: '4', width: '4', height: '16', rx: '1' }],
+])

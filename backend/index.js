@@ -58,7 +58,44 @@ const SEED_QUERIES = [
   'story',
   'sun',
   'sea',
+  'girl',
+  'boy',
+  'life',
+  'time',
+  'heart',
+  'moon',
+  'city',
+  'king',
+  'dream',
+  'shadow',
+  'ghost',
+  'space',
+  'star',
+  'wild',
+  'home',
+  'game',
+  'music',
+  'secret',
+  'mystery',
+  'crime',
+  'robot',
+  'alien',
+  'magic',
+  'forest',
+  'island',
+  'winter',
+  'rain',
+  'gold',
+  'power',
+  'hero',
+  'legend',
+  'journey',
+  'escape',
 ]
+
+// Páginas de resultados (10 por página) que se piden por cada seed query:
+// más páginas = pool más grande = más variedad real de OMDB por ánimo.
+const SEARCH_PAGES_PER_QUERY = 2
 
 // Géneros de OMDB que sintonizan con cada ánimo de Midnight.
 const MOOD_GENRES = {
@@ -92,9 +129,13 @@ const MOOD_BY_GENRE = [
   ['Music', 'melancolico'],
 ]
 
-// Máximo de películas devueltas por mood y tamaño del pool de candidatos.
-const CATALOG_TARGET = 12
-const CATALOG_POOL_MAX = 24
+// Tamaño del pool de candidatos y mínimo de coincidencias directas antes de
+// rellenar con el resto del catálogo. CATALOG_TARGET es un techo generoso:
+// en la práctica se muestran TODAS las películas del pool que sintonizan con
+// el ánimo (no se recorta a un puñado como antes).
+const CATALOG_TARGET = 60
+const CATALOG_MIN = 16
+const CATALOG_POOL_MAX = 150
 
 // Cache en memoria del catálogo ya armado por mood para no repetir requests.
 const catalogCache = new Map()
@@ -117,19 +158,22 @@ function buildSearchPool(limit = CATALOG_POOL_MAX) {
   if (!searchPoolPromise) {
     searchPoolPromise = (async () => {
       const pool = new Map() // imdbID -> entry
+      const pages = Array.from({ length: SEARCH_PAGES_PER_QUERY }, (_, i) => i + 1)
       await Promise.all(
-        SEED_QUERIES.map(async (query) => {
-          try {
-            const raw = await omdb({ s: query, type: 'movie' })
-            for (const hit of raw.Search || []) {
-              if (!pool.has(hit.imdbID)) {
-                pool.set(hit.imdbID, { imdbId: hit.imdbID, title: hit.Title || query })
+        SEED_QUERIES.flatMap((query) =>
+          pages.map(async (page) => {
+            try {
+              const raw = await omdb({ s: query, type: 'movie', page })
+              for (const hit of raw.Search || []) {
+                if (!pool.has(hit.imdbID)) {
+                  pool.set(hit.imdbID, { imdbId: hit.imdbID, title: hit.Title || query })
+                }
               }
+            } catch {
+              // una búsqueda fallida no detiene al resto del pool
             }
-          } catch {
-            // una búsqueda fallida no detiene al resto del pool
-          }
-        }),
+          }),
+        ),
       )
       return [...pool.values()].slice(0, limit)
     })().catch((error) => {
@@ -173,17 +217,22 @@ async function buildMoodCatalog(mood) {
 
   const tuned = movies.filter((movie) => moodGenreTuned(movie, mood))
   const rest = movies.filter((movie) => !moodGenreTuned(movie, mood))
-  const results = [...tuned, ...rest]
-    .slice(0, CATALOG_TARGET)
-    .map((movie) => ({ ...movie, mood }))
+
+  // Se muestran TODAS las coincidencias reales del ánimo (hasta el techo
+  // generoso de CATALOG_TARGET); solo se rellena con el resto del catálogo
+  // si el ánimo tiene muy pocas coincidencias directas en el pool.
+  const combined = tuned.length >= CATALOG_MIN ? tuned : [...tuned, ...rest]
+  const results = combined.slice(0, CATALOG_TARGET).map((movie) => ({ ...movie, mood }))
 
   catalogCache.set(mood, results)
   return results
 }
 
-// Tráiler oficial de títulos conocidos por IMDb ID (video ID de YouTube).
-// OMDB no provee tráileres, así que se resuelven aquí; cualquier título que no
-// esté mapeado recibe DEFAULT_TRAILER_KEY (footage libre de derechos).
+// Tráiler oficial VERIFICADO de títulos conocidos por IMDb ID (video ID de
+// YouTube, confirmado contra el oembed de YouTube). OMDB no provee
+// tráileres; cualquier título que no esté mapeado aquí NO recibe un video
+// (para no mostrar el tráiler equivocado): en su lugar se ofrece un link de
+// búsqueda real en YouTube (ver trailerSearchUrl).
 const MOVIE_TRAILERS = {
   tt0338013: '07-QBnEkgXU', // Eternal Sunshine of the Spotless Mind
   tt1798709: 'ne6p6MfLBxc', // Her
@@ -211,10 +260,13 @@ const MOVIE_TRAILERS = {
   tt1856101: 'gCcx85zbxz4', // Blade Runner 2049
 }
 
-// Tráiler por defecto (video libre de derechos) para garantizar que ninguna
-// película de la app se quede sin tráiler. Es footage cinematográfico sin
-// copyright (no es un tráiler oficial, pero reproduce algo siempre).
-const DEFAULT_TRAILER_KEY = 'lOYaMF_8OmI'
+// Construye una URL de búsqueda real de YouTube para el título + año, usada
+// como respaldo honesto cuando no hay un tráiler verificado en MOVIE_TRAILERS
+// (evita mostrar el video de otra película como si fuera su tráiler).
+function trailerSearchUrl(title, year) {
+  const q = `${title} ${year || ''} official trailer`.trim()
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
+}
 
 async function omdb(params) {
   if (!OMDB_KEY) throw new Error('OMDB_API_KEY no configurada en el .env del backend')
@@ -239,7 +291,19 @@ function runtimeLabel(minutes) {
   return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
 }
 
+// Convierte "Nombre1, Nombre2, ..." en un arreglo limpio de strings.
+function splitList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item && item !== 'N/A')
+}
+
 // Normaliza una película de OMDB a la forma que usa la app.
+// Incluye todos los campos relevantes que expone la API (más allá del
+// mínimo de póster/rating/duración): reparto, dirección, premios, taquilla,
+// idioma, país, Metascore, votos IMDb y el desglose de Ratings por fuente
+// (IMDb / Rotten Tomatoes / Metacritic).
 function omdbToMovie(entry, raw) {
   if (!raw || raw.Response !== 'True') return null
   const vote = Number(raw.imdbRating) || 0
@@ -249,15 +313,22 @@ function omdbToMovie(entry, raw) {
     .split(',')
     .map((genre) => genre.trim())
     .filter(Boolean)
+  const clean = (value) => (value && value !== 'N/A' ? value : '')
   return {
     id: `omdb-${raw.imdbID}`,
+    imdbId: raw.imdbID,
     source: 'omdb',
     title: raw.Title || entry.title,
     year: Number(raw.Year) || '',
     duration: runtimeLabel(minutes),
-    rating: raw.Rated && raw.Rated !== 'N/A' ? raw.Rated : '',
+    rating: clean(raw.Rated),
     match: Math.min(98, Math.max(74, Math.round(44 + vote * 6))),
     vote,
+    imdbVotes: clean(raw.imdbVotes),
+    metascore: raw.Metascore && raw.Metascore !== 'N/A' ? Number(raw.Metascore) : null,
+    ratings: Array.isArray(raw.Ratings)
+      ? raw.Ratings.map((r) => ({ source: r.Source, value: r.Value }))
+      : [],
     genres,
     mood: entry.mood,
     tagline: '',
@@ -267,7 +338,22 @@ function omdbToMovie(entry, raw) {
         : 'Sinopsis no disponible para este título.',
     poster: raw.Poster && raw.Poster !== 'N/A' ? raw.Poster : '',
     badge: '',
-    trailerKey: MOVIE_TRAILERS[raw.imdbID] || MOVIE_TRAILERS[entry.imdbId] || DEFAULT_TRAILER_KEY,
+    director: splitList(raw.Director),
+    writer: splitList(raw.Writer),
+    actors: splitList(raw.Actors),
+    awards: clean(raw.Awards),
+    language: splitList(raw.Language),
+    country: splitList(raw.Country),
+    boxOffice: clean(raw.BoxOffice),
+    production: clean(raw.Production),
+    website: clean(raw.Website),
+    type: clean(raw.Type),
+    dvd: clean(raw.DVD),
+    // Solo se asigna un trailerKey si está verificado en MOVIE_TRAILERS; si no
+    // existe, se manda null + un link de búsqueda real en vez de un video
+    // genérico no relacionado (sería un tráiler falso para ese título).
+    trailerKey: MOVIE_TRAILERS[raw.imdbID] || MOVIE_TRAILERS[entry.imdbId] || null,
+    trailerSearchUrl: trailerSearchUrl(raw.Title || entry.title, raw.Year),
   }
 }
 
