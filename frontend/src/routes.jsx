@@ -3,6 +3,7 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import Login from './Login.jsx'
+import Register from './Register.jsx'
 import App from './App.jsx'
 
 // Protege rutas: si no hay sesión, redirige a /login recordando el origen.
@@ -15,11 +16,17 @@ export function ProtectedRoute({ children }) {
   return children
 }
 
-// Si ya hay sesión, /login redirige a /welcome.
+// Si ya hay sesión, /login y /register redirigen a /welcome.
 export function LoginRoute() {
   const { isAuthenticated } = useAuth()
   if (isAuthenticated) return <Navigate to="/welcome" replace />
   return <Login />
+}
+
+export function RegisterRoute() {
+  const { isAuthenticated } = useAuth()
+  if (isAuthenticated) return <Navigate to="/welcome" replace />
+  return <Register />
 }
 
 // La página principal protegida.

@@ -40,11 +40,415 @@ const TMDB_BASE = 'https://api.themoviedb.org/3'
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
 
+// Catálogo de respaldo local (cuando OMDB falla o llega a rate limit)
+const FALLBACK_MOVIES = [
+  {
+    id: 'fallback-lluvia-tardia',
+    imdbId: 'tt-local-1',
+    source: 'catalog',
+    title: 'Lluvia Tardía',
+    year: 2023,
+    duration: '1h 54m',
+    rating: '16+',
+    match: 97,
+    vote: 8.2,
+    imdbVotes: '1,234',
+    metascore: 78,
+    ratings: [{ source: 'Internet Movie Database', value: '8.2/10' }],
+    genres: ['Drama', 'Neo-noir'],
+    mood: 'melancolico',
+    tagline: 'Nadie vuelve a casa igual.',
+    synopsis: 'Una traductora nocturna recorre una ciudad que no deja de llover, reconstruyendo la última conversación con su hermano a partir de cintas que él nunca quiso que escuchara.',
+    poster: '/poster-1-Za7ksjur.jpg',
+    badge: 'Exclusiva Midnight',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'lOYaMF_8OmI',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Lluvia+Tard%C3%ADa+2023+official+trailer',
+  },
+  {
+    id: 'fallback-sin-frenos',
+    imdbId: 'tt-local-2',
+    source: 'catalog',
+    title: 'Sin Frenos',
+    year: 2025,
+    duration: '2h 06m',
+    rating: '18+',
+    match: 94,
+    vote: 7.8,
+    imdbVotes: '2,567',
+    metascore: 72,
+    ratings: [{ source: 'Internet Movie Database', value: '7.8/10' }],
+    genres: ['Acción', 'Thriller'],
+    mood: 'energico',
+    tagline: 'Acelera o desaparece.',
+    synopsis: 'Una mensajera de contrabando digital tiene noventa minutos para cruzar la ciudad entera antes de que el túnel se cierre y su nombre deje de existir.',
+    poster: '/poster-2-DSuB6aWQ.jpg',
+    badge: 'Estreno',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'DBHofAezYaU',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Sin+Frenos+2025+official+trailer',
+  },
+  {
+    id: 'fallback-verano-77',
+    imdbId: 'tt-local-3',
+    source: 'catalog',
+    title: 'Verano del 77',
+    year: 2021,
+    duration: '1h 41m',
+    rating: '13+',
+    match: 92,
+    vote: 7.5,
+    imdbVotes: '3,421',
+    metascore: 68,
+    ratings: [{ source: 'Internet Movie Database', value: '7.5/10' }],
+    genres: ['Coming of age', 'Road movie'],
+    mood: 'nostalgico',
+    tagline: 'El último viaje antes de crecer.',
+    synopsis: 'Tres amigos roban el auto del padre de uno para llegar al mar antes del amanecer. Lo que encuentran en el camino los separa para siempre.',
+    poster: '/poster-3-CER_oLq2.jpg',
+    badge: '',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'DBHofAezYaU',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Verano+del+77+2021+official+trailer',
+  },
+  {
+    id: 'fallback-el-pasillo',
+    imdbId: 'tt-local-4',
+    source: 'catalog',
+    title: 'El Pasillo',
+    year: 2024,
+    duration: '1h 37m',
+    rating: '18+',
+    match: 95,
+    vote: 7.9,
+    imdbVotes: '1,876',
+    metascore: 75,
+    ratings: [{ source: 'Internet Movie Database', value: '7.9/10' }],
+    genres: ['Suspenso', 'Misterio'],
+    mood: 'suspenso',
+    tagline: 'La luz falla cada once segundos.',
+    synopsis: 'Un vigilante nocturno descubre que el piso catorce del edificio aparece en los planos pero no en el elevador. Cada noche, el pasillo es un poco más largo.',
+    poster: '/poster-4-DFI_JCsJ.jpg',
+    badge: 'Top 10 hoy',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'HmhVYO_UGm4',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=El+Pasillo+2024+official+trailer',
+  },
+  {
+    id: 'fallback-confeti',
+    imdbId: 'tt-local-5',
+    source: 'catalog',
+    title: 'Confeti',
+    year: 2022,
+    duration: '1h 48m',
+    rating: '7+',
+    match: 90,
+    vote: 7.3,
+    imdbVotes: '4,321',
+    metascore: 65,
+    ratings: [{ source: 'Internet Movie Database', value: '7.3/10' }],
+    genres: ['Comedia', 'Feel good'],
+    mood: 'feliz',
+    tagline: 'Un desfile que nadie autorizó.',
+    synopsis: 'Cinco vecinos deciden salvar su calle organizando la fiesta más ruidosa e ilegal del barrio. Solo tienen un permiso vencido y demasiadas ganas.',
+    poster: '/poster-8-C4kah2_z.jpg',
+    badge: '',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'sVCJA0U6MyE',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Confeti+2022+official+trailer',
+  },
+  {
+    id: 'fallback-azotea-once',
+    imdbId: 'tt-local-6',
+    source: 'catalog',
+    title: 'Azotea Once',
+    year: 2024,
+    duration: '1h 52m',
+    rating: '13+',
+    match: 96,
+    vote: 8.1,
+    imdbVotes: '2,134',
+    metascore: 80,
+    ratings: [{ source: 'Internet Movie Database', value: '8.1/10' }],
+    genres: ['Romance', 'Drama'],
+    mood: 'romantico',
+    tagline: 'Se conocieron por un apagón.',
+    synopsis: 'Dos desconocidos quedan atrapados en la azotea de un edificio durante un corte de luz que dura toda la noche. Al amanecer tendrán que decidir si se vuelven a ver.',
+    poster: '/poster-5-BJGCGQmv.jpg',
+    badge: 'Favorita del público',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'At0u6ZjtTw8',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Azotea+Once+2024+official+trailer',
+  },
+  {
+    id: 'fallback-linea-cresta',
+    imdbId: 'tt-local-7',
+    source: 'catalog',
+    title: 'Línea de Cresta',
+    year: 2023,
+    duration: '2h 12m',
+    rating: '13+',
+    match: 93,
+    vote: 7.7,
+    imdbVotes: '1,567',
+    metascore: 70,
+    ratings: [{ source: 'Internet Movie Database', value: '7.7/10' }],
+    genres: ['Aventura', 'Documental'],
+    mood: 'aventurero',
+    tagline: 'Arriba nadie te espera.',
+    synopsis: 'Una expedición sin patrocinio intenta trazar la primera ruta por la cara este de una cordillera que los mapas locales evitan nombrar.',
+    poster: '/poster-6-geXDuGI-.jpg',
+    badge: '',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'QVMKFeLtCkE',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=L%C3%ADnea+de+Cresta+2023+official+trailer',
+  },
+  {
+    id: 'fallback-orbita-tenue',
+    imdbId: 'tt-local-8',
+    source: 'catalog',
+    title: 'Órbita Tenue',
+    year: 2025,
+    duration: '2h 01m',
+    rating: '13+',
+    match: 91,
+    vote: 7.6,
+    imdbVotes: '987',
+    metascore: 73,
+    ratings: [{ source: 'Internet Movie Database', value: '7.6/10' }],
+    genres: ['Ciencia ficción', 'Contemplativa'],
+    mood: 'reflexivo',
+    tagline: 'Silencio, con vista al planeta.',
+    synopsis: 'El último tripulante de una estación en desmantelamiento recibe un mensaje suyo, grabado siete años antes, con una instrucción que no recuerda haber dado.',
+    poster: '/poster-7-Bqra6GzS.jpg',
+    badge: 'Exclusiva Midnight',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'kSZddHca0ME',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=%C3%93rbita+Tenue+2025+official+trailer',
+  },
+  {
+    id: 'fallback-cintas-invierno',
+    imdbId: 'tt-local-9',
+    source: 'catalog',
+    title: 'Cintas de Invierno',
+    year: 2020,
+    duration: '1h 33m',
+    rating: '16+',
+    match: 88,
+    vote: 7.4,
+    imdbVotes: '1,234',
+    metascore: 69,
+    ratings: [{ source: 'Internet Movie Database', value: '7.4/10' }],
+    genres: ['Drama', 'Íntima'],
+    mood: 'melancolico',
+    tagline: 'Grabó su despedida en casete.',
+    synopsis: 'Un archivista clasifica las grabaciones caseras de una familia desaparecida y empieza a reconocer su propia voz de niño entre las cintas.',
+    poster: '/poster-4-DFI_JCsJ.jpg',
+    badge: '',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'owXCx1ebfA0',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Cintas+de+Invierno+2020+official+trailer',
+  },
+  {
+    id: 'fallback-neon-abierto',
+    imdbId: 'tt-local-10',
+    source: 'catalog',
+    title: 'Neón Abierto',
+    year: 2024,
+    duration: '1h 44m',
+    rating: '16+',
+    match: 89,
+    vote: 7.2,
+    imdbVotes: '2,345',
+    metascore: 66,
+    ratings: [{ source: 'Internet Movie Database', value: '7.2/10' }],
+    genres: ['Acción', 'Cyberpunk'],
+    mood: 'energico',
+    tagline: 'La ciudad no duerme, tú tampoco.',
+    synopsis: 'Una carrera clandestina se convierte en cacería cuando el premio deja de ser dinero y empieza a ser el mapa de la red eléctrica de la ciudad.',
+    poster: '/poster-2-DSuB6aWQ.jpg',
+    badge: '',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'z6aMAPndP8Q',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Ne%C3%B3n+Abierto+2024+official+trailer',
+  },
+  {
+    id: 'fallback-postal-agosto',
+    imdbId: 'tt-local-11',
+    source: 'catalog',
+    title: 'Postal de Agosto',
+    year: 2019,
+    duration: '1h 29m',
+    rating: '7+',
+    match: 86,
+    vote: 7.1,
+    imdbVotes: '1,876',
+    metascore: 64,
+    ratings: [{ source: 'Internet Movie Database', value: '7.1/10' }],
+    genres: ['Nostalgia', 'Familiar'],
+    mood: 'nostalgico',
+    tagline: 'Volver al pueblo, veinte años después.',
+    synopsis: 'Una fotógrafa regresa al pueblo donde pasó todos sus veranos para vender la casa familiar y termina reconstruyendo un álbum que nunca se terminó.',
+    poster: '/poster-3-CER_oLq2.jpg',
+    badge: '',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: '6ntUefWpN40',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Postal+de+Agosto+2019+official+trailer',
+  },
+  {
+    id: 'fallback-faro-mudo',
+    imdbId: 'tt-local-12',
+    source: 'catalog',
+    title: 'Faro Mudo',
+    year: 2022,
+    duration: '1h 58m',
+    rating: '16+',
+    match: 87,
+    vote: 7.5,
+    imdbVotes: '1,432',
+    metascore: 71,
+    ratings: [{ source: 'Internet Movie Database', value: '7.5/10' }],
+    genres: ['Contemplativa', 'Misterio'],
+    mood: 'reflexivo',
+    tagline: 'Dos meses, una sola voz.',
+    synopsis: 'Un guardafaro acepta un turno de dos meses en total aislamiento y comienza a escribir cartas a alguien que quizá nunca existió.',
+    poster: '/poster-7-Bqra6GzS.jpg',
+    badge: '',
+    director: ['Director Local'],
+    writer: ['Escritor Local'],
+    actors: ['Actor 1', 'Actor 2'],
+    awards: '',
+    language: ['Español'],
+    country: ['México'],
+    boxOffice: '',
+    production: '',
+    website: '',
+    type: 'movie',
+    dvd: '',
+    trailerKey: 'gHcmaoysGMI',
+    trailerSearchUrl: 'https://www.youtube.com/results?search_query=Faro+Mudo+2022+official+trailer',
+  },
+]
+
+function getFallbackMovies(mood) {
+  return FALLBACK_MOVIES.filter(m => m.mood === mood)
+}
+
 // Modelos free recomendados (orden de preferencia)
 const OPENROUTER_MODELS = [
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
   'z-ai/glm-5.2:free',
   'openai/gpt-oss-120b:free',
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
   'openrouter/free',
 ]
 
@@ -56,61 +460,21 @@ const trailerCache = new Map()
 // títulos), así que el catálogo dinámico arma un pool de películas con estas
 // palabras clave genéricas y luego filtra por el género real del detalle
 // (`i=ImdbID`). Deja de ser un catálogo hardcodeado: todo se consume de la API.
+// Reducido a 8 queries para ahorrar requests de OMDB (~8 requests por catálogo)
 const SEED_QUERIES = [
   'love',
-  'night',
-  'day',
-  'summer',
-  'world',
-  'man',
-  'last',
-  'lost',
-  'dark',
-  'house',
-  'war',
-  'fire',
-  'run',
-  'story',
-  'sun',
-  'sea',
-  'girl',
-  'boy',
-  'life',
-  'time',
-  'heart',
-  'moon',
-  'city',
-  'king',
-  'dream',
-  'shadow',
-  'ghost',
-  'space',
-  'star',
-  'wild',
-  'home',
-  'game',
-  'music',
-  'secret',
-  'mystery',
-  'crime',
-  'robot',
-  'alien',
-  'magic',
-  'forest',
-  'island',
-  'winter',
-  'rain',
-  'gold',
-  'power',
-  'hero',
-  'legend',
-  'journey',
-  'escape',
+  'action',
+  'comedy',
+  'thriller',
+  'drama',
+  'adventure',
+  'horror',
+  'sci-fi',
 ]
 
 // Páginas de resultados (10 por página) que se piden por cada seed query:
 // más páginas = pool más grande = más variedad real de OMDB por ánimo.
-const SEARCH_PAGES_PER_QUERY = 2
+const SEARCH_PAGES_PER_QUERY = 1
 
 // Géneros de OMDB que sintonizan con cada ánimo de Midnight.
 const MOOD_GENRES = {
@@ -148,9 +512,9 @@ const MOOD_BY_GENRE = [
 // rellenar con el resto del catálogo. CATALOG_TARGET es un techo generoso:
 // en la práctica se muestran TODAS las películas del pool que sintonizan con
 // el ánimo (no se recorta a un puñado como antes).
-const CATALOG_TARGET = 60
-const CATALOG_MIN = 16
-const CATALOG_POOL_MAX = 150
+const CATALOG_TARGET = 10
+const CATALOG_MIN = 6
+const CATALOG_POOL_MAX = 30
 
 // Cache en memoria del catálogo ya armado por mood para no repetir requests.
 const catalogCache = new Map()
@@ -355,27 +719,41 @@ async function omdb(params) {
     }
   }
   const response = await fetch(url)
+  const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(`OMDB respondió ${response.status}`)
+    const error = new Error(`OMDB respondió ${response.status}`)
+    error.response = data
+    throw error
   }
-  return response.json()
+  return data
 }
 
 // ---------- OpenRouter LLM: parseo de mood desde texto libre ----------
 async function parseMoodWithLLM(text) {
   if (!OPENROUTER_KEY) return null
 
-  const systemPrompt = `Eres un clasificador de estado de ánimo para una app de cine.
-El usuario escribe con sus palabras cómo se siente y quieres ver.
-Devuelve SOLO JSON válido con este esquema:
+  const systemPrompt = `Eres un clasificador de estado de animo para una app de cine.
+El usuario escribe con sus palabras como se siente y que quiere ver.
+Devuelve SOLO JSON valido con este esquema:
 {
   "mood": "melancolico|energico|nostalgico|suspenso|feliz|romantico|aventurero|reflexivo|null",
   "confidence": 0-1,
-  "keywords": ["palabra1", "palabra2"],  // palabras clave extraídas para búsqueda OMDB
-  "referenceTitle": "título de referencia si menciona uno", // ej: "algo como Inception"
-  "reasoning": "explicación breve en español"
+  "keywords": ["palabra1", "palabra2"],  // palabras clave extraidas para busqueda OMDB
+  "referenceTitle": "titulo de referencia si menciona uno", // ej: "algo como Inception"
+  "reasoning": "explicacion breve en espanol"
 }
-Moods válidos: melancolico, energico, nostalgico, suspenso, feliz, romantico, aventurero, reflexivo.
+Moods validos: melancolico, energico, nostalgico, suspenso, feliz, romantico, aventurero, reflexivo.
+
+GUIA DE MAPEO DE EMOCIONES COMUNES:
+- enojado, furioso, frustrado, estresado, tenso -> energico (accion, thrillers para descargar adrenalina)
+- triste, deprimido, melancolico, solitario, nostalgico_triste -> melancolico
+- feliz, alegre, contento, euforico, emocionado -> feliz
+- ansioso, nervioso, intranquilo -> suspenso (thrillers, misterio)
+- aburrido, rutinario -> aventurero (peliculas de aventura, viajes)
+- enamorado, romantico, carinoso -> romantico
+- pensativo, filosofico, existencial, profundo -> reflexivo
+- nostalgico, recuerdos, infancia, pasado -> nostalgico
+
 Si no detectas un mood claro, pon mood: null.`
 
   for (const model of OPENROUTER_MODELS) {
@@ -597,18 +975,33 @@ server.get('/api/catalog', async (request, response) => {
     const { mood } = request.query
 
     if (!OMDB_KEY) {
-      return response.status(503).json({
-        ok: false,
-        error: 'OMDB_API_KEY no configurada en el .env del backend.',
-      })
+      console.warn('OMDB_API_KEY no configurada, usando catálogo local de respaldo')
+      const fallback = getFallbackMovies(mood)
+      return response.json({ ok: true, mood, source: 'catalog', results: fallback })
     }
 
-    const results = await buildMoodCatalog(mood)
+    try {
+      const results = await buildMoodCatalog(mood)
+      
+      // Si OMDB devuelve resultados vacíos (rate limit), usar fallback
+      if (!results || results.length === 0) {
+        console.warn('OMDB devolvió catálogo vacío para mood:', mood, '- usando fallback local')
+        const fallback = getFallbackMovies(mood)
+        return response.json({ ok: true, mood, source: 'catalog', results: fallback })
+      }
 
-    return response.json({ ok: true, mood, source: 'omdb', results })
+      return response.json({ ok: true, mood, source: 'omdb', results })
+    } catch (omdbError) {
+      console.error('Error al obtener catálogo OMDB:', omdbError.message)
+      console.warn('Usando catálogo local de respaldo')
+      const fallback = getFallbackMovies(mood)
+      return response.json({ ok: true, mood, source: 'catalog', results: fallback })
+    }
   } catch (error) {
     console.error('SERVER ERROR [GET /api/catalog]:', error)
-    return response.status(502).json({ ok: false, error: error.message })
+    // Último recurso: fallback local
+    const fallback = getFallbackMovies(request.query.mood)
+    return response.json({ ok: true, mood: request.query.mood, source: 'catalog', results: fallback })
   }
 })
 
@@ -627,35 +1020,50 @@ server.get('/api/search', async (request, response) => {
     }
 
     if (!OMDB_KEY) {
-      return response.status(503).json({
-        ok: false,
-        error: 'OMDB_API_KEY no configurada en el .env del backend.',
+      console.warn('OMDB_API_KEY no configurada, búsqueda local no disponible para búsqueda por nombre')
+      return response.json({ ok: true, query, total: 0, results: [], source: 'catalog' })
+    }
+
+    try {
+      const raw = await omdb({ s: query, type: 'movie', page })
+      
+      // Manejar rate limit de OMDB
+      if (raw.Response === 'False' && raw.Error && raw.Error.includes('limit')) {
+        console.warn('OMDB rate limit alcanzado para búsqueda:', query)
+        return response.json({ ok: true, query, total: 0, results: [], source: 'catalog', error: 'Rate limit OMDB' })
+      }
+      
+      if (raw.Response !== 'True' || !Array.isArray(raw.Search)) {
+        return response.json({ ok: true, query, total: 0, results: [] })
+      }
+
+      const candidates = raw.Search.slice(0, 10).map((hit) => ({
+        imdbId: hit.imdbID,
+        title: hit.Title || query,
+        mood: '',
+      }))
+
+      const results = (await enrichMovies(candidates))
+        .filter(Boolean)
+        .map((movie) => ({ ...movie, mood: moodForGenres(movie.genres) }))
+
+      return response.json({
+        ok: true,
+        query,
+        page,
+        total: Number(raw.totalResults) || results.length,
+        hasMore: page * 10 < Number(raw.totalResults || 0),
+        results,
       })
+    } catch (omdbError) {
+      const isRateLimit = omdbError.response?.Error?.includes('limit') || omdbError.response?.Error?.includes('limit reached')
+      if (isRateLimit) {
+        console.warn('OMDB rate limit alcanzado para búsqueda:', query)
+        return response.json({ ok: true, query, total: 0, results: [], source: 'catalog', error: 'Rate limit OMDB' })
+      }
+      console.error('Error en búsqueda OMDB:', omdbError.message)
+      return response.json({ ok: true, query, total: 0, results: [], source: 'catalog', error: omdbError.message })
     }
-
-    const raw = await omdb({ s: query, type: 'movie', page })
-    if (raw.Response !== 'True' || !Array.isArray(raw.Search)) {
-      return response.json({ ok: true, query, total: 0, results: [] })
-    }
-
-    const candidates = raw.Search.map((hit) => ({
-      imdbId: hit.imdbID,
-      title: hit.Title || query,
-      mood: '',
-    }))
-
-    const results = (await enrichMovies(candidates))
-      .filter(Boolean)
-      .map((movie) => ({ ...movie, mood: moodForGenres(movie.genres) }))
-
-    return response.json({
-      ok: true,
-      query,
-      page,
-      total: Number(raw.totalResults) || results.length,
-      hasMore: page * 10 < Number(raw.totalResults || 0),
-      results,
-    })
   } catch (error) {
     console.error('SERVER ERROR [GET /api/search]:', error)
     return response.status(502).json({ ok: false, error: error.message })
@@ -675,14 +1083,25 @@ server.get('/api/mood-search', async (request, response) => {
     }
 
     if (!OMDB_KEY) {
-      return response.status(503).json({
-        ok: false,
-        error: 'OMDB_API_KEY no configurada en el .env del backend.',
+      console.warn('OMDB_API_KEY no configurada, usando búsqueda local de respaldo para mood-search')
+      // Fallback: buscar en catálogo local por keywords simples
+      const localResults = searchLocalCatalog(query)
+      return response.json({
+        ok: true,
+        query,
+        llm: null,
+        results: localResults,
+        source: 'catalog',
       })
     }
 
     // 1) LLM analiza el texto → mood + keywords + título de referencia
-    const llmResult = await parseMoodWithLLM(query)
+    let llmResult = null
+    try {
+      llmResult = await parseMoodWithLLM(query)
+    } catch (llmError) {
+      console.warn('LLM falló, continuando con búsqueda por keywords:', llmError.message)
+    }
 
     // 2) Construir queries de búsqueda para OMDB
     const searchQueries = []
@@ -703,13 +1122,19 @@ server.get('/api/mood-search', async (request, response) => {
             }
           }
         }
-      } catch {
+      } catch (err) {
+        const isRateLimit = err.response?.Error?.includes('limit') || err.response?.Error?.includes('limit reached')
+        if (isRateLimit) {
+          console.warn('OMDB rate limit en mood-search para:', sq)
+          // Si hay rate limit, no tiene sentido seguir intentando
+          break
+        }
         // query individual fallida no rompe el resto
       }
     }
 
     // 4) Enriquecer candidatos (detalle + tráiler) y filtrar por mood si LLM detectó uno
-    const candidates = [...allResults.values()].slice(0, 20)
+    const candidates = [...allResults.values()].slice(0, 10)
     let results = (await enrichMovies(candidates)).filter(Boolean)
 
     if (llmResult?.mood && MOOD_GENRES[llmResult.mood]) {
@@ -717,6 +1142,28 @@ server.get('/api/mood-search', async (request, response) => {
       const tuned = results.filter((m) => (m.genres || []).some((g) => genreList.includes(g)))
       const rest = results.filter((m) => !(m.genres || []).some((g) => genreList.includes(g)))
       results = [...tuned, ...rest]
+    }
+
+    // Si no hay resultados de OMDB, usar catálogo local
+    if (results.length === 0) {
+      console.warn('Sin resultados de OMDB en mood-search, usando catálogo local')
+      const localResults = searchLocalCatalog(query)
+      return response.json({
+        ok: true,
+        query,
+        llm: llmResult
+          ? {
+              mood: llmResult.mood,
+              confidence: llmResult.confidence,
+              keywords: llmResult.keywords,
+              referenceTitle: llmResult.referenceTitle,
+              reasoning: llmResult.reasoning,
+              model: llmResult.model,
+            }
+          : null,
+        results: localResults,
+        source: 'catalog',
+      })
     }
 
     // Asignar mood detectado a cada película
@@ -736,19 +1183,60 @@ server.get('/api/mood-search', async (request, response) => {
           }
         : null,
       results,
+      source: 'omdb',
     })
   } catch (error) {
     console.error('SERVER ERROR [GET /api/mood-search]:', error)
-    return response.status(502).json({ ok: false, error: error.message })
+    // Fallback final: catálogo local
+    const localResults = searchLocalCatalog(request.query.q)
+    return response.json({
+      ok: true,
+      query: request.query.q,
+      llm: null,
+      results: localResults,
+      source: 'catalog',
+      error: error.message,
+    })
   }
 })
+
+// Búsqueda simple en catálogo local por palabras clave
+function searchLocalCatalog(query) {
+  const normalized = query.toLowerCase()
+  const moodKeywords = {
+    melancolico: ['melancolico', 'triste', 'llorar', 'lluvia', 'silencio', 'solitario', 'nostalgia', 'deprimido', 'bajon', 'down', 'sad'],
+    energico: ['energico', 'accion', 'adrenalina', 'intenso', 'rapido', 'explosiones', 'peleas', 'lucha', 'correr', 'action', 'energy'],
+    nostalgico: ['nostalgico', 'infancia', 'pasado', 'verano', 'recuerdos', 'niñez', 'antiguo', 'clasico', 'retro', 'vintage', 'nostalgic'],
+    suspenso: ['suspenso', 'tension', 'misterio', 'intriga', 'thriller', 'sospecha', 'enigma', 'oscuro', 'suspense', 'mystery'],
+    feliz: ['feliz', 'alegre', 'risas', 'comedia', 'divertido', 'buen rollo', 'positivo', 'animado', 'gracioso', 'happy', 'comedy', 'funny'],
+    romantico: ['romantico', 'amor', 'pareja', 'enamorado', 'cita', 'boda', 'besos', 'corazon', 'romance', 'love', 'romantic'],
+    aventurero: ['aventurero', 'aventura', 'viaje', 'explorar', 'descubrir', 'mapa', 'expedicion', 'selva', 'montaña', 'adventure', 'journey'],
+    reflexivo: ['reflexivo', 'pensar', 'profundo', 'filosofico', 'existencia', 'sentido', 'vida', 'mente', 'cerebro', 'intelectual', 'thoughtful', 'deep'],
+  }
+
+  let detectedMood = null
+  for (const [mood, keywords] of Object.entries(moodKeywords)) {
+    if (keywords.some(kw => normalized.includes(kw))) {
+      detectedMood = mood
+      break
+    }
+  }
+
+  if (detectedMood) {
+    return getFallbackMovies(detectedMood)
+  }
+
+  // Buscar por título en catálogo local
+  return FALLBACK_MOVIES.filter(movie => 
+    movie.title.toLowerCase().includes(normalized)
+  )
+}
 
 // GET /api/omdb/:imdbId
 // Detalle real de una película por su ID de IMDb (con cache).
 server.get('/api/omdb/:imdbId', async (request, response) => {
+  const { imdbId } = request.params
   try {
-    const { imdbId } = request.params
-
     if (omdbCache.has(imdbId)) {
       return response.json({ ok: true, movie: omdbCache.get(imdbId) })
     }
@@ -763,6 +1251,11 @@ server.get('/api/omdb/:imdbId', async (request, response) => {
 
     return response.json({ ok: true, movie })
   } catch (error) {
+    const isRateLimit = error.response?.Error?.includes('limit') || error.response?.Error?.includes('limit reached')
+    if (isRateLimit) {
+      console.warn('OMDB rate limit alcanzado para detalle:', imdbId)
+      return response.status(429).json({ ok: false, error: 'Rate limit OMDB alcanzado. Intenta más tarde.' })
+    }
     console.error('SERVER ERROR [GET /api/omdb/:imdbId]:', error)
     const noKey = !OMDB_KEY
     return response.status(noKey ? 503 : 502).json({

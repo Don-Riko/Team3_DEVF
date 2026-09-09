@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { HERO_IMAGE, movies, getMood, moods } from './data'
@@ -263,6 +263,18 @@ export default function App() {
   const [recs, setRecs] = useState({ source: 'catalog', items: [] })
   const [recLoading, setRecLoading] = useState(false)
 
+  // ---- Mood text input (Describe cómo te sientes) ----
+  const [moodText, setMoodText] = useState('')
+  const [moodTextLoading, setMoodTextLoading] = useState(false)
+  const moodTextDebounceRef = useRef(null)
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
+    }
+  }, [])
+
   // ---- Biblioteca ----
   const libKey = `midnight.library.${user?.username ?? 'guest'}`
   const [library, setLibrary] = useState(() => {
@@ -287,6 +299,7 @@ export default function App() {
   const [searchPage, setSearchPage] = useState(1)
   const [searchTotal, setSearchTotal] = useState(0)
   const [searchHasMore, setSearchHasMore] = useState(false)
+  const [searchSource, setSearchSource] = useState('omdb')
   const searchInputRef = useRef(null)
 
   const moodMeta = mood ? getMood(mood) : null
@@ -374,6 +387,35 @@ export default function App() {
     }
   }
 
+  // Debounced conversational mood search
+  const handleMoodTextSearch = useCallback(async (text) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    setMoodTextLoading(true)
+    try {
+      const result = await searchMood(trimmed)
+      if (result.ok && result.llm?.mood) {
+        handleMoodChange(result.llm.mood)
+        setMoodText('')
+        return
+      }
+    } catch (error) {
+      console.warn('LLM mood search failed:', error)
+    } finally {
+      setMoodTextLoading(false)
+    }
+
+    // Fallback: parser local de keywords
+    const detected = parseMoodFromText(trimmed)
+    if (detected) {
+      handleMoodChange(detected)
+      setMoodText('')
+    } else {
+      setMoodTextLoading(false)
+    }
+  }, [handleMoodChange])
+
   function handlePlayNow() {
     if (!mood || items.length === 0) return
     const topMatch = items.reduce((best, current) =>
@@ -413,9 +455,11 @@ export default function App() {
       setSearchPage(result.page)
       setSearchTotal(result.total)
       setSearchHasMore(result.hasMore)
+      setSearchSource(result.source || 'omdb')
     } else {
       setSearchResults([])
       setSearchHasMore(false)
+      setSearchSource('omdb')
     }
   }
 
@@ -430,6 +474,7 @@ export default function App() {
     setSearchPage(result.page)
     setSearchTotal(result.total)
     setSearchHasMore(result.hasMore)
+    setSearchSource(result.source || 'omdb')
   }
 
   function handleSearchKeyDown(event) {
@@ -594,9 +639,15 @@ export default function App() {
               </div>
             ) : (
               <>
+                {searchSource === 'catalog' && (
+                  <div className="search-fallback-notice">
+                    <span className="fallback-icon">⚡</span>
+                    <span>Mostrando catálogo local (OMDB no disponible)</span>
+                  </div>
+                )}
                 <p className="recs-sub">
                   {searchResults.length} de {searchTotal || searchResults.length} resultado{searchTotal === 1 ? '' : 's'} de
-                  OMDB para "{searchQuery.trim()}".
+                  {searchSource === 'catalog' ? 'catálogo local' : 'OMDB'} para "{searchQuery.trim()}".
                 </p>
                 <div className="movie-row no-scrollbar search-results">
                   {searchResults.map((m) => (
@@ -670,27 +721,26 @@ export default function App() {
                 className="mood-text-field"
                 placeholder="Ej: quiero algo tranquilo, necesito reírme, dame suspenso..."
                 aria-label="Describe tu estado de ánimo con tus palabras"
-                onKeyDown={async (event) => {
+                value={moodText}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setMoodText(value)
+                  // Debounce: cancelar búsqueda anterior
+                  if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
+                  // Buscar después de 500ms de inactividad
+                  moodTextDebounceRef.current = setTimeout(() => {
+                    handleMoodTextSearch(value)
+                  }, 500)
+                }}
+                onKeyDown={(event) => {
                   if (event.key === 'Enter') {
-                    const text = event.currentTarget.value.trim()
-                    if (!text) return
-                    event.currentTarget.value = ''
-                    // 1) Intentar búsqueda conversacional con LLM (backend)
-                    try {
-                      const result = await searchMood(text)
-                      if (result.ok && result.llm?.mood) {
-                        handleMoodChange(result.llm.mood)
-                        return
-                      }
-                    } catch {
-                      // fallback silencioso
-                    }
-                    // 2) Fallback: parser local de keywords
-                    const detected = parseMoodFromText(text)
-                    if (detected) handleMoodChange(detected)
+                    event.preventDefault()
+                    if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
+                    handleMoodTextSearch(moodText)
                   }
                 }}
               />
+              {moodTextLoading && <span className="mood-text-loading" aria-label="Buscando...">⟳</span>}
               <span className="mood-text-hint">
                 <SparklesIcon size={14} /> Escribe con tus palabras
               </span>

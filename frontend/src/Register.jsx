@@ -1,5 +1,5 @@
-// Login.jsx
-// Pantalla de login (/login), previa a la página principal (/welcome).
+// Register.jsx
+// Pantalla de registro (/register), para crear nueva cuenta.
 import { useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
@@ -8,7 +8,7 @@ import { SparklesIcon } from './icons'
 
 const EMPTY = { username: '', password: '' }
 
-export default function Login() {
+export default function Register() {
   const navigate = useNavigate()
   const location = useLocation()
   const { login } = useAuth()
@@ -17,11 +17,10 @@ export default function Login() {
   const [errors, setErrors] = useState({})
   const [touched, setTouched] = useState({})
   const [authError, setAuthError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  // A dónde volver tras iniciar sesión (o /welcome por defecto).
   const from = location.state?.from ?? '/welcome'
 
-  // Regla global: habilitar el botón solo con todos los campos completos.
   const canSubmit = useMemo(() => allFieldsComplete(values), [values])
 
   function handleChange(event) {
@@ -30,7 +29,6 @@ export default function Login() {
     setValues(next)
     setAuthError('')
 
-    // Validación en vivo solo de campos ya tocados.
     if (touched[name]) {
       const result = validateLogin(next)
       setErrors(result.success ? {} : result.errors)
@@ -54,13 +52,34 @@ export default function Login() {
       return
     }
     setErrors({})
+    setLoading(true)
 
-    const outcome = await login(result.data.username, result.data.password)
-    if (!outcome.ok) {
-      setAuthError(outcome.error || 'Usuario o contraseña incorrectos.')
-      return
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result.data),
+      })
+      const data = await res.json()
+
+      if (!data.ok) {
+        setAuthError(data.error || 'Error al registrar')
+        setLoading(false)
+        return
+      }
+
+      // Auto-login después de registrar
+      const loginOutcome = await login(result.data.username, result.data.password)
+      if (loginOutcome.ok) {
+        navigate(from, { replace: true })
+      } else {
+        setAuthError('Registro OK, pero error al iniciar sesión automáticamente')
+        setLoading(false)
+      }
+    } catch {
+      setAuthError('Error de conexión')
+      setLoading(false)
     }
-    navigate(from, { replace: true })
   }
 
   return (
@@ -72,15 +91,15 @@ export default function Login() {
             <SparklesIcon size={16} />
           </span>
           <span className="brand-text">
-            Midnight<span className="brand-dim"> Cinema &amp; Mood</span>
+            Midnight<span className="brand-dim"> Cinema & Mood</span>
           </span>
         </div>
 
         <h1 id="auth-title" className="auth-title">
-          Inicia sesión
+          Crear cuenta
         </h1>
         <p className="auth-sub">
-          Accede para descubrir cine curado según tu estado de ánimo.
+          Regístrate para descubrir cine curado según tu estado de ánimo.
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
@@ -99,7 +118,8 @@ export default function Login() {
               onBlur={handleBlur}
               aria-invalid={Boolean(errors.username)}
               aria-describedby={errors.username ? 'username-error' : undefined}
-              placeholder="p. ej. Admin"
+              placeholder="mín. 3 caracteres"
+              disabled={loading}
             />
             {errors.username ? (
               <p id="username-error" className="field-error" role="alert">
@@ -116,14 +136,15 @@ export default function Login() {
               id="password"
               name="password"
               type="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
               className={`field-input${errors.password ? ' field-input--error' : ''}`}
               value={values.password}
               onChange={handleChange}
               onBlur={handleBlur}
               aria-invalid={Boolean(errors.password)}
               aria-describedby={errors.password ? 'password-error' : undefined}
-              placeholder="••••••••"
+              placeholder="mín. 6 caracteres"
+              disabled={loading}
             />
             {errors.password ? (
               <p id="password-error" className="field-error" role="alert">
@@ -141,14 +162,14 @@ export default function Login() {
           <button
             type="submit"
             className="btn btn-primary auth-submit"
-            disabled={!canSubmit}
+            disabled={!canSubmit || loading}
           >
-            Entrar
+            {loading ? 'Creando...' : 'Registrarse'}
           </button>
         </form>
 
         <p className="auth-switch">
-          ¿No tienes cuenta? <a href="/register">Regístrate</a>
+          ¿Ya tienes cuenta? <a href="/login">Inicia sesión</a>
         </p>
       </section>
     </main>
