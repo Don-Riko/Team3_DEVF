@@ -10,6 +10,10 @@ import {
   CloseIcon,
 } from './icons'
 
+// Tráiler por defecto: footage cinematográfico libre de derechos que se usa
+// como respaldo para que ninguna película se quede sin video reproducible.
+const FALLBACK_TRAILER_KEY = 'lOYaMF_8OmI'
+
 export default function MovieModal({
   movie,
   open,
@@ -37,9 +41,8 @@ export default function MovieModal({
   if (!movie) return null
   const mood = getMood(movie.mood)
 
-  const trailerUrl = movie.trailerKey
-    ? `https://www.youtube.com/embed/${movie.trailerKey}?autoplay=1&rel=0`
-    : null
+  const trailerKey = movie.trailerKey || FALLBACK_TRAILER_KEY
+  const trailerUrl = `https://www.youtube.com/embed/${trailerKey}?autoplay=1&rel=0`
 
   function handlePlay() {
     setPlaying((value) => !value)

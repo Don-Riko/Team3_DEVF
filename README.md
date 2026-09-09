@@ -30,7 +30,7 @@ El proyecto integra de forma puntual los conceptos del curso de Frontend:
 | **Estado y Context API** | `AuthContext` gestiona la sesión global; se combina con `localStorage` para persistir la autenticación entre recargas. |
 | **Routing con React Router** | Rutas públicas y protegidas (`/login`, `/welcome`) con guardas de redirección (`ProtectedRoute`, `LoginRoute`, `WelcomeRoute`). |
 | **Manejo de formularios y validación** | Formulario de login validado con **Zod** (patrón de solo-alfanuméricos sin repeticiones consecutivas). |
-| **Consumo de APIs / peticiones HTTP** | Cliente `api.js` + `auth.js` que consumen los endpoints del backend Express (`/api/login`, `/api/catalog` con datos reales de **OMDB**, biblioteca y perfil). |
+| **Consumo de APIs / peticiones HTTP** | Cliente `api.js` + `auth.js` que consumen los endpoints del backend Express (`/api/login`, `/api/catalog` con datos reales de **OMDB**, búsqueda por nombre con `/api/search`, biblioteca y perfil). |
 | **Estilos y diseño responsive** | Sistema de diseño propio en `index.css` con variables CSS, `oklch()`, `color-mix()` y breakpoints; animaciones con Framer Motion y CSS. |
 | **Backend y bases de datos** | API REST con **Express 5** conectada a **PostgreSQL (Supabase)** mediante `pg`, con manejo de variables de entorno y `dotenv`. |
 | **Autenticación** | Flujo real de login contra la tabla `users`, con sesión persistente en el cliente. |
@@ -94,9 +94,9 @@ Team3_DEVF/
 │   │   ├── loginSchema.js
 │   │   ├── MoodPicker.jsx
 │   │   ├── MovieCard.jsx
-│   │   ├── MovieModal.jsx
+│   │   ├── MovieModal.jsx    # Modal de detalle + reproductor de tráiler (con fallback)
 │   │   ├── ProfileModal.jsx    # Perfil de gusto emocional
-│   │   ├── data.js       # Catálogo local de respaldo: 8 moods + películas
+│   │   ├── data.js       # Catálogo local de respaldo: 8 moods + películas (con tráilers libres de derechos)
 │   │   ├── icons.jsx
 │   │   ├── index.css     # Sistema de diseño (variables CSS, responsive)
 │   │   └── components/
@@ -167,7 +167,8 @@ El servidor estará disponible en `http://localhost:3000` y, si la configuració
 | `GET` | `/api/hello` | Health check | - |
 | `POST` | `/api/login` | Autenticar usuario | `{ username, password }` |
 | `POST` | `/api/mood-selection` | Registrar selección de mood | `{ username, mood }` |
-| `GET` | `/api/catalog?mood=X` | Cartelera OMDB curada por mood (datos reales: póster, rating IMDb, duración, género, sinopsis y tráiler oficial de YouTube) | `mood` |
+| `GET` | `/api/catalog?mood=X` | Cartelera OMDB dinámica por mood: arma un pool desde las búsquedas de OMDB y lo filtra por el género que sintoniza con el ánimo (datos reales: póster, rating IMDb, duración, género y sinopsis) + tráiler de video garantizado (oficial de YouTube o footage libre de derechos de respaldo) | `mood` |
+| `GET` | `/api/search?q=X` | Busca películas reales por nombre en OMDB, las enriquece con detalle + tráiler y les asigna un mood | `q` |
 | `GET` | `/api/omdb/:imdbId` | Detalle real de una película por IMDb ID | - |
 | `GET` | `/api/library?username=X` | Lista la biblioteca del usuario (watchlist/vistas) | `username` |
 | `POST` | `/api/library` | Agrega/actualiza un ítem de la biblioteca | `{ username, movieId, source, title, poster, year, trailerKey, status }` |
@@ -231,7 +232,8 @@ El frontend estará disponible en `http://localhost:5173`.
 
 1. **Login:** El usuario ingresa credenciales → el frontend envía `POST /api/login` → el backend valida contra la tabla `users` → devuelve el objeto de usuario → se almacena en `AuthContext` + `localStorage`.
 2. **Selección de mood:** El usuario hace clic en un mood card → se actualiza el estado local → se envía `POST /api/mood-selection` → el backend registra en `mood_selections`.
-3. **Recomendaciones:** Al elegir un mood, el frontend pide `GET /api/catalog?mood=X` → el backend enriquece el catálogo curado de ese ánimo con datos reales de OMDB (póster, rating IMDb, duración, género) y resuelve el tráiler oficial de YouTube por IMDb ID (`MOVIE_TRAILERS`) → el frontend muestra la cartelera. Si OMDB no está disponible, cae al catálogo local (`data.js`).
+3. **Recomendaciones:** Al elegir un mood, el frontend pide `GET /api/catalog?mood=X` → el backend arma un catálogo dinámico desde OMDB (genera un pool con búsquedas por palabra clave, lo enriquece con el detalle real: póster, rating IMDb, duración y género, y lo filtra por el género que sintoniza con el ánimo) y resuelve el tráiler de YouTube por IMDb ID (`MOVIE_TRAILERS`). Si el título no tiene tráiler oficial mapeado, el backend inyecta `DEFAULT_TRAILER_KEY` (footage cinematográfico libre de derechos) para que todas las películas lleguen con video → el frontend muestra la cartelera. El catálogo queda cacheado para los siguientes clicks. Si OMDB no está disponible, cae al catálogo local (`data.js`), cuyo catálogo también incluye un `trailerKey` libre de derechos por película.
+4. **Búsqueda:** El usuario abre el buscador (icono de lupa en el header), escribe un título y el frontend pide `GET /api/search?q=X` → el backend busca en OMDB (`s=`), enriquece cada resultado con detalle + tráiler y le asigna un mood por su género → el frontend los muestra como tarjetas reproducibles.
 
 ### Arquitectura propuesta / a futuro
 
@@ -272,19 +274,29 @@ El MVP demuestra el concepto de punta a punta. Está incompleto por diseño: pri
 
 - ✅ Sistema de login/registro de usuarios contra una base de datos real (Supabase).
 - ✅ Selector de 8 estados de ánimo con identidad visual propia.
-- ✅ **Catálogo dinámico** con cartelera real vía **OMDB** (pósters, rating IMDb, duración, género y sinopsis reales) y tráilers de YouTube oficialmente embedidos (autoplay por clic del usuario).
+- ✅ **Catálogo dinámico** con cartelera real vía **OMDB** (pósters, rating IMDb, duración, género y sinopsis reales) y tráilers de YouTube embedidos (autoplay por clic del usuario).
 - ✅ **"Mi biblioteca":** películas guardadas por ver (`watchlist`) y marcadas como vistas (`watched`).
 - ✅ **Perfil de gusto emocional:** histórico personal de moods para detectar patrones.
 - ✅ Recomendaciones curadas por mood con ficha detallada (sinopsis, géneros, match, tráiler).
 - ✅ Sesión persistente y cierre de sesión.
 - ✅ Registro de selecciones históricas en la base de datos.
 
+### Tráilers de video (garantizados)
+
+Todas las películas de la app reproducen un tráiler de video, por sistema y en tres capas:
+
+1. **Catálogo local (`frontend/src/data.js`):** cada una de las 12 películas ficticias incluye un `trailerKey` (video ID de YouTube) con una pieza de **footage cinematográfico libre de derechos** acorde al ánimo del título (ciudad nocturna, moto urbana, niebla, confeti, estrellas, etc.). Como las películas son ficticias no existe un tráiler oficial real, por eso se usan videos sin copyright curados por mood.
+2. **Catálogo OMDB (`backend/index.js`):** los títulos reales se resuelven por IMDb ID en `MOVIE_TRAILERS` con su tráiler oficial de YouTube; si un título no está mapeado, el backend inyecta `DEFAULT_TRAILER_KEY` (footage libre de derechos) para que ninguna película llegue al frontend sin video.
+3. **Reproductor (`frontend/src/MovieModal.jsx`):** si por cualquier motivo un objeto de película llega sin `trailerKey` (por ejemplo, un ítem de biblioteca guardado antes con la columna vacía), el modal usa `FALLBACK_TRAILER_KEY`. El botón "Reproducir tráiler" siempre reproduce un video libre de derechos.
+
+El reproductor embebe YouTube (`https://www.youtube.com/embed/{id}?autoplay=1&rel=0`) y el `trailer_key` se persiste en la tabla `library_items` para que el tráiler también se reproduzca desde la biblioteca.
+
 ### Proyecciones a futuro
 
 Estas son las líneas de trabajo planteadas para llevar el MVP a un producto completo:
 
 **Producto y contenido**
-- 🔍 Búsqueda por título en el catálogo OMDB (`s=` de OMDB) para ampliar la cartelera bajo demanda.
+- 🎬 Algoritmos de recomendación por embeddings de gustos y desempates por rating/crítica.
 
 **Cuenta y seguridad**
 - 🔐 **Registro de nuevos usuarios** (hoy solo existe el usuario demo `Admin`).
@@ -348,7 +360,7 @@ Estas son las líneas de trabajo planteadas para llevar el MVP a un producto com
 | `title` | text | Título guardado |
 | `poster` | text | URL del póster |
 | `year` | text | Año |
-| `trailer_key` | text | Video ID de YouTube del tráiler (persistido para reproducirlo desde la biblioteca) |
+| `trailer_key` | text | Video ID de YouTube del tráiler o del footage libre de derechos de respaldo (persistido para reproducirlo desde la biblioteca) |
 | `status` | text | `watchlist` o `watched` |
 | `created_at` | timestamptz | Fecha de registro |
 | — | — | `unique (user_id, movie_id)` |

@@ -37,54 +37,153 @@ const OMDB_BASE = 'https://www.omdbapi.com'
 // Cache en memoria por imdbID para no gastar la cuota diaria de OMDB.
 const omdbCache = new Map()
 
-// Catálogo curado: cada mood de Midnight apunta a películas reales (IMDb).
-// El backend pide a OMDB los datos reales (póster, rating, duración, género,
-// sinopsis) y el frontend los muestra como recomendaciones.
-const MOOD_CATALOG = {
-  melancolico: [
-    { imdbId: 'tt0338013', title: 'Eternal Sunshine of the Spotless Mind' },
-    { imdbId: 'tt1798709', title: 'Her' },
-    { imdbId: 'tt4034228', title: 'Manchester by the Sea' },
-  ],
-  energico: [
-    { imdbId: 'tt3896198', title: 'Guardians of the Galaxy: Vol. 2' },
-    { imdbId: 'tt1392190', title: 'Mad Max: Fury Road' },
-    { imdbId: 'tt2911666', title: 'John Wick' },
-  ],
-  nostalgico: [
-    { imdbId: 'tt0109830', title: 'Forrest Gump' },
-    { imdbId: 'tt0092005', title: 'Stand by Me' },
-    { imdbId: 'tt0088847', title: 'The Breakfast Club' },
-  ],
-  suspenso: [
-    { imdbId: 'tt2267998', title: 'Gone Girl' },
-    { imdbId: 'tt0114369', title: 'Seven' },
-    { imdbId: 'tt0102926', title: 'The Silence of the Lambs' },
-  ],
-  feliz: [
-    { imdbId: 'tt1675434', title: 'The Intouchables' },
-    { imdbId: 'tt0829482', title: 'Superbad' },
-    { imdbId: 'tt1570728', title: 'Crazy, Stupid, Love.' },
-  ],
-  romantico: [
-    { imdbId: 'tt3783958', title: 'La La Land' },
-    { imdbId: 'tt3104988', title: 'Crazy Rich Asians' },
-    { imdbId: 'tt0125439', title: 'Notting Hill' },
-  ],
-  aventurero: [
-    { imdbId: 'tt0359950', title: 'The Secret Life of Walter Mitty' },
-    { imdbId: 'tt0758758', title: 'Into the Wild' },
-    { imdbId: 'tt0082971', title: 'Raiders of the Lost Ark' },
-  ],
-  reflexivo: [
-    { imdbId: 'tt0816692', title: 'Interstellar' },
-    { imdbId: 'tt2543164', title: 'Arrival' },
-    { imdbId: 'tt1856101', title: 'Blade Runner 2049' },
-  ],
+// OMDB no permite filtrar por género en su búsqueda `s=` (solo busca en
+// títulos), así que el catálogo dinámico arma un pool de películas con estas
+// palabras clave genéricas y luego filtra por el género real del detalle
+// (`i=ImdbID`). Deja de ser un catálogo hardcodeado: todo se consume de la API.
+const SEED_QUERIES = [
+  'love',
+  'night',
+  'day',
+  'summer',
+  'world',
+  'man',
+  'last',
+  'lost',
+  'dark',
+  'house',
+  'war',
+  'fire',
+  'run',
+  'story',
+  'sun',
+  'sea',
+]
+
+// Géneros de OMDB que sintonizan con cada ánimo de Midnight.
+const MOOD_GENRES = {
+  melancolico: ['Drama', 'Romance', 'Music'],
+  energico: ['Action', 'Thriller'],
+  nostalgico: ['Comedy', 'Family', 'Drama'],
+  suspenso: ['Thriller', 'Crime', 'Mystery', 'Horror'],
+  feliz: ['Comedy', 'Family', 'Animation', 'Musical'],
+  romantico: ['Romance', 'Comedy'],
+  aventurero: ['Adventure', 'Western', 'Sci-Fi', 'Fantasy'],
+  reflexivo: ['Sci-Fi', 'Drama', 'Fantasy'],
 }
 
-// Tráiler oficial de cada título del catálogo curado (video ID de YouTube).
-// OMDB no provee tráileres, así que se resuelven aquí por IMDb ID.
+// Prioridad de géneros para asignar un mood a los resultados de búsqueda.
+const MOOD_BY_GENRE = [
+  ['Romance', 'romantico'],
+  ['Comedy', 'feliz'],
+  ['Musical', 'feliz'],
+  ['Action', 'energico'],
+  ['Thriller', 'suspenso'],
+  ['Horror', 'suspenso'],
+  ['Crime', 'suspenso'],
+  ['Mystery', 'suspenso'],
+  ['Adventure', 'aventurero'],
+  ['Western', 'aventurero'],
+  ['Animation', 'feliz'],
+  ['Family', 'nostalgico'],
+  ['Sci-Fi', 'reflexivo'],
+  ['Fantasy', 'aventurero'],
+  ['Drama', 'melancolico'],
+  ['Music', 'melancolico'],
+]
+
+// Máximo de películas devueltas por mood y tamaño del pool de candidatos.
+const CATALOG_TARGET = 12
+const CATALOG_POOL_MAX = 24
+
+// Cache en memoria del catálogo ya armado por mood para no repetir requests.
+const catalogCache = new Map()
+
+function moodForGenres(genres) {
+  for (const [genre, moodId] of MOOD_BY_GENRE) {
+    if (genres.includes(genre)) return moodId
+  }
+  return 'feliz'
+}
+
+function moodGenreTuned(movie, mood) {
+  const genreList = MOOD_GENRES[mood] || []
+  return (movie.genres || []).some((genre) => genreList.includes(genre))
+}
+
+// Arma una sola vez el pool de películas candidatas (búsquedas con cache).
+let searchPoolPromise
+function buildSearchPool(limit = CATALOG_POOL_MAX) {
+  if (!searchPoolPromise) {
+    searchPoolPromise = (async () => {
+      const pool = new Map() // imdbID -> entry
+      await Promise.all(
+        SEED_QUERIES.map(async (query) => {
+          try {
+            const raw = await omdb({ s: query, type: 'movie' })
+            for (const hit of raw.Search || []) {
+              if (!pool.has(hit.imdbID)) {
+                pool.set(hit.imdbID, { imdbId: hit.imdbID, title: hit.Title || query })
+              }
+            }
+          } catch {
+            // una búsqueda fallida no detiene al resto del pool
+          }
+        }),
+      )
+      return [...pool.values()].slice(0, limit)
+    })().catch((error) => {
+      searchPoolPromise = null
+      throw error
+    })
+  }
+  return searchPoolPromise
+}
+
+async function enrichMovies(entries) {
+  return Promise.all(
+    entries.map(async (entry) => {
+      if (omdbCache.has(entry.imdbId)) return omdbCache.get(entry.imdbId)
+      try {
+        const raw = await omdb({ i: entry.imdbId, plot: 'short' })
+        const movie = omdbToMovie(entry, raw)
+        if (movie) omdbCache.set(entry.imdbId, movie)
+        return movie
+      } catch {
+        return null
+      }
+    }),
+  )
+}
+
+// Catálogo dinámico por mood, consumido integro de OMDB: arma un pool con
+// las búsquedas por palabra clave, lo enriquece con el detalle real y filtra
+// por el género que sintoniza con el ánimo. Primera vez se arma en vivo y
+// queda cacheado para los siguientes clicks.
+async function buildMoodCatalog(mood) {
+  if (catalogCache.has(mood)) return catalogCache.get(mood)
+
+  if (!MOOD_GENRES[mood]) {
+    catalogCache.set(mood, [])
+    return []
+  }
+
+  const pool = await buildSearchPool()
+  const movies = (await enrichMovies(pool)).filter(Boolean)
+
+  const tuned = movies.filter((movie) => moodGenreTuned(movie, mood))
+  const rest = movies.filter((movie) => !moodGenreTuned(movie, mood))
+  const results = [...tuned, ...rest]
+    .slice(0, CATALOG_TARGET)
+    .map((movie) => ({ ...movie, mood }))
+
+  catalogCache.set(mood, results)
+  return results
+}
+
+// Tráiler oficial de títulos conocidos por IMDb ID (video ID de YouTube).
+// OMDB no provee tráileres, así que se resuelven aquí; cualquier título que no
+// esté mapeado recibe DEFAULT_TRAILER_KEY (footage libre de derechos).
 const MOVIE_TRAILERS = {
   tt0338013: '07-QBnEkgXU', // Eternal Sunshine of the Spotless Mind
   tt1798709: 'ne6p6MfLBxc', // Her
@@ -111,6 +210,11 @@ const MOVIE_TRAILERS = {
   tt2543164: 'tFMo3UJ4B4g', // Arrival
   tt1856101: 'gCcx85zbxz4', // Blade Runner 2049
 }
+
+// Tráiler por defecto (video libre de derechos) para garantizar que ninguna
+// película de la app se quede sin tráiler. Es footage cinematográfico sin
+// copyright (no es un tráiler oficial, pero reproduce algo siempre).
+const DEFAULT_TRAILER_KEY = 'lOYaMF_8OmI'
 
 async function omdb(params) {
   if (!OMDB_KEY) throw new Error('OMDB_API_KEY no configurada en el .env del backend')
@@ -163,7 +267,7 @@ function omdbToMovie(entry, raw) {
         : 'Sinopsis no disponible para este título.',
     poster: raw.Poster && raw.Poster !== 'N/A' ? raw.Poster : '',
     badge: '',
-    trailerKey: MOVIE_TRAILERS[raw.imdbID] || MOVIE_TRAILERS[entry.imdbId] || null,
+    trailerKey: MOVIE_TRAILERS[raw.imdbID] || MOVIE_TRAILERS[entry.imdbId] || DEFAULT_TRAILER_KEY,
   }
 }
 
@@ -253,13 +357,13 @@ server.post('/api/mood-selection', async (request, response) => {
 })
 
 // GET /api/catalog?mood=X
-// Cartelera OMDB curada por mood: devuelve las películas de ese ánimo
-// enriquecidas con datos reales de OMDB (póster, rating IMDb, duración,
-// género, sinopsis). El frontend las muestra como recomendaciones.
+// Cartelera OMDB dinámica por mood: arma un pool desde las búsquedas de OMDB,
+// lo enriquece con el detalle real (póster, rating IMDb, duración, género,
+// sinopsis) y filtra por el género que sintoniza con ese ánimo. La primera vez
+// se arma en vivo y queda cacheada para los siguientes clicks.
 server.get('/api/catalog', async (request, response) => {
   try {
     const { mood } = request.query
-    const entries = (MOOD_CATALOG[mood] || []).map((entry) => ({ ...entry, mood }))
 
     if (!OMDB_KEY) {
       return response.status(503).json({
@@ -268,28 +372,58 @@ server.get('/api/catalog', async (request, response) => {
       })
     }
 
-    if (entries.length === 0) {
-      return response.json({ ok: true, mood, source: 'omdb', results: [] })
+    const results = await buildMoodCatalog(mood)
+
+    return response.json({ ok: true, mood, source: 'omdb', results })
+  } catch (error) {
+    console.error('SERVER ERROR [GET /api/catalog]:', error)
+    return response.status(502).json({ ok: false, error: error.message })
+  }
+})
+
+// GET /api/search?q=X
+// Busca películas reales en OMDB por nombre. Cada resultado se enriquece con
+// el detalle completo y un tráiler (mapa por IMDb ID o video por defecto).
+server.get('/api/search', async (request, response) => {
+  try {
+    const { q } = request.query
+    const query = q ? String(q).trim() : ''
+
+    if (!query) {
+      return response.status(400).json({ ok: false, error: 'El parámetro q es requerido.' })
     }
 
-    const results = await Promise.all(
-      entries.map(async (entry) => {
-        if (omdbCache.has(entry.imdbId)) return omdbCache.get(entry.imdbId)
-        const raw = await omdb({ i: entry.imdbId, plot: 'short' })
-        const movie = omdbToMovie(entry, raw)
-        if (movie) omdbCache.set(entry.imdbId, movie)
-        return movie
-      }),
-    )
+    if (!OMDB_KEY) {
+      return response.status(503).json({
+        ok: false,
+        error: 'OMDB_API_KEY no configurada en el .env del backend.',
+      })
+    }
+
+    const raw = await omdb({ s: query, type: 'movie' })
+    if (raw.Response !== 'True' || !Array.isArray(raw.Search)) {
+      return response.json({ ok: true, query, total: 0, results: [] })
+    }
+
+    const maxResults = Math.min(raw.Search.length, 10)
+    const candidates = raw.Search.slice(0, maxResults).map((hit) => ({
+      imdbId: hit.imdbID,
+      title: hit.Title || query,
+      mood: '',
+    }))
+
+    const results = (await enrichMovies(candidates))
+      .filter(Boolean)
+      .map((movie) => ({ ...movie, mood: moodForGenres(movie.genres) }))
 
     return response.json({
       ok: true,
-      mood,
-      source: 'omdb',
-      results: results.filter(Boolean),
+      query,
+      total: Number(raw.totalResults) || results.length,
+      results,
     })
   } catch (error) {
-    console.error('SERVER ERROR [GET /api/catalog]:', error)
+    console.error('SERVER ERROR [GET /api/search]:', error)
     return response.status(502).json({ ok: false, error: error.message })
   }
 })

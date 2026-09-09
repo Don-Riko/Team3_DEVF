@@ -6,10 +6,17 @@ import {
   SparklesIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CloseIcon,
 } from './icons'
 import { useAuth } from './AuthContext'
 import { recordMoodSelection } from './auth'
-import { fetchLibrary, fetchOmdbCatalog, removeLibraryItem, saveLibraryItem } from './api'
+import {
+  fetchLibrary,
+  fetchOmdbCatalog,
+  searchMovies,
+  removeLibraryItem,
+  saveLibraryItem,
+} from './api'
 import MoodPicker from './MoodPicker'
 import MovieCard from './MovieCard'
 import MovieModal from './MovieModal'
@@ -124,6 +131,13 @@ export default function App() {
   // ---- Profile ----
   const [profileOpen, setProfileOpen] = useState(false)
 
+  // ---- Buscador OMDB ----
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState(null) // null = sin búsqueda aún
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchInputRef = useRef(null)
+
   const moodMeta = mood ? getMood(mood) : null
   const watchlist = useMemo(
     () => library.filter((item) => item.status === 'watchlist'),
@@ -196,6 +210,33 @@ export default function App() {
 
   function openMovie(target) {
     setMovie(target)
+  }
+
+  // ---- Buscador handlers ----
+  function openSearch() {
+    setSearchOpen(true)
+    requestAnimationFrame(() => searchInputRef.current?.focus())
+  }
+
+  function closeSearch() {
+    setSearchOpen(false)
+    setSearchQuery('')
+    setSearchResults(null)
+  }
+
+  async function handleSearchSubmit(event) {
+    event?.preventDefault()
+    const query = searchQuery.trim()
+    if (!query) return
+    setSearchLoading(true)
+    const result = await searchMovies(query)
+    setSearchLoading(false)
+    if (result.ok) setSearchResults(result.results)
+    else setSearchResults([])
+  }
+
+  function handleSearchKeyDown(event) {
+    if (event.key === 'Escape') closeSearch()
   }
 
   // ---- Biblioteca handlers ----
@@ -272,13 +313,97 @@ export default function App() {
           </nav>
 
           <div className="header-actions">
-            <button type="button" className="icon-btn" aria-label="Buscar">
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Buscar"
+              aria-expanded={searchOpen}
+              onClick={openSearch}
+            >
               <SearchIcon size={16} />
             </button>
             <ProfileMenu onOpenProfile={() => setProfileOpen(true)} />
           </div>
         </div>
       </header>
+
+      {searchOpen ? (
+        <div
+          className="search-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Buscar películas por nombre"
+          onClick={closeSearch}
+          onKeyDown={handleSearchKeyDown}
+        >
+          <div className="search-panel" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close"
+              aria-label="Cerrar búsqueda"
+              onClick={closeSearch}
+            >
+              <CloseIcon size={16} />
+            </button>
+            <span className="recs-step">Buscador de cartelera</span>
+            <h2 className="search-title">Busca una película por nombre</h2>
+            <p className="search-sub">
+              Consulta el catálogo real de OMDB con la API: escribe el título y cada
+              resultado trae su tráiler para reproducir aquí mismo.
+            </p>
+            <form className="search-form" onSubmit={handleSearchSubmit}>
+              <input
+                ref={searchInputRef}
+                className="search-input"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Ej. Inception, Interstellar, Amélie…"
+                aria-label="Nombre de la película"
+                autoComplete="off"
+              />
+              <button type="submit" className="btn btn-primary">
+                Buscar
+              </button>
+            </form>
+            {searchLoading ? (
+              <div className="empty">
+                <p className="empty-sub">Buscando en OMDB…</p>
+              </div>
+            ) : searchResults === null ? (
+              <div className="empty">
+                <p className="empty-sub">
+                  Escribe un título y presiona Buscar para explorar la cartelera.
+                </p>
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="empty">
+                <p className="empty-title">Sin resultados</p>
+                <p className="empty-sub">Prueba con otro título.</p>
+              </div>
+            ) : (
+              <>
+                <p className="recs-sub">
+                  {searchResults.length} resultado{searchResults.length === 1 ? '' : 's'} de
+                  OMDB para "{searchQuery.trim()}".
+                </p>
+                <div className="movie-row no-scrollbar search-results">
+                  {searchResults.map((m) => (
+                    <div className="movie-reveal" key={m.id}>
+                      <MovieCard
+                        movie={m}
+                        onOpen={(target) => {
+                          closeSearch()
+                          openMovie(target)
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <section id="moods" className="hero grain">
         <img
