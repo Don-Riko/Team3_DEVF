@@ -2,10 +2,8 @@
 // Pantalla de registro (/register): formulario clásico completo validado con Zod
 // (nombre, apellidos, celular MX, correo, contraseña + confirmación/repetidor).
 //
-// NOTA DE ALCANCE (Opción 1 - solo frontend): el backend actual solo persiste
-// { username, password }. Los campos nombre/apellidos/teléfono se validan en el
-// cliente pero aún no se guardan (no hay columnas ni endpoint). El username se
-// deriva del correo para mantener compatibilidad con POST /api/register.
+// El backend persiste el perfil completo vía POST /api/register. El username se
+// deriva de la parte local del correo.
 import { useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
@@ -79,10 +77,17 @@ export default function Register() {
     setErrors({})
     setLoading(true)
 
-    // El backend actual solo acepta { username, password }. Derivamos el
-    // username del correo (parte local) para mantener compatibilidad.
+    // El backend ahora persiste el perfil completo. El username se deriva de la
+    // parte local del correo (el backend valida unicidad de username y email).
     const username = result.data.email.split('@')[0]
-    const payload = { username, password: result.data.password }
+    const payload = {
+      username,
+      password: result.data.password,
+      firstName: result.data.firstName,
+      lastName: result.data.lastName,
+      phone: result.data.phone,
+      email: result.data.email,
+    }
 
     try {
       const res = await fetch('/api/register', {

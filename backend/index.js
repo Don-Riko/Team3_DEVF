@@ -11,6 +11,7 @@
 const express = require('express')
 const cors = require('cors')
 const pg = require('pg')
+const crypto = require('crypto')
 const dotenv = require('dotenv')
 dotenv.config()
 
@@ -906,6 +907,146 @@ async function ensureConnection() {
 
 server.get('/api/hello', (request, response) => {
   response.json({ message: 'Hello from the Midnight backend!' })
+})
+
+// POST /api/register
+// Crea una cuenta con los datos del formulario clásico.
+// Cuerpo esperado: { username, password, firstName, lastName, phone, email }
+// Solo username y password son estrictamente obligatorios en el backend; los
+// demás se persisten si vienen. El correo, si se envía, debe ser único.
+server.post('/api/register', async (request, response) => {
+  try {
+    const {
+      username,
+      password,
+      firstName = '',
+      lastName = '',
+      phone = '',
+      email = null,
+    } = request.body ?? {}
+
+    if (!username || !password) {
+      return response.status(400).json({ ok: false, error: 'Usuario y contraseña son requeridos.' })
+    }
+
+    await ensureConnection()
+
+    // Iniciales a partir de nombre/apellido, o del username como respaldo.
+    const initialsSource = `${firstName} ${lastName}`.trim() || username
+    const initials = initialsSource
+      .split(/\s+/)
+      .map((part) => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('')
+
+    try {
+      const result = await pool.query(
+        `INSERT INTO ${DATABASE_SCHEMA}.users
+           (username, password, initials, first_name, last_name, phone, email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, username, initials`,
+        [username, password, initials, firstName, lastName, phone, email || null],
+      )
+      const user = result.rows[0]
+      return response.status(201).json({ ok: true, user })
+    } catch (dbError) {
+      // 23505 = unique_violation (username o email duplicado).
+      if (dbError.code === '23505') {
+        const field = /email/i.test(dbError.detail || '') ? 'correo' : 'usuario'
+        return response.status(409).json({ ok: false, error: `Ese ${field} ya está registrado.` })
+      }
+      throw dbError
+    }
+  } catch (error) {
+    console.error('SERVER ERROR [POST /api/register]:', error)
+    return response.status(500).json({ ok: false, error: 'Error en el servidor.' })
+  }
+})
+
+// POST /api/forgot-password
+// Genera un token de recuperación para el correo dado. Por seguridad responde
+// siempre ok (no revela si el correo existe). Para MVP devuelve el token en la
+// respuesta (en producción se enviaría por email).
+server.post('/api/forgot-password', async (request, response) => {
+  try {
+    const { email } = request.body ?? {}
+    if (!email) {
+      return response.status(400).json({ ok: false, error: 'El correo es requerido.' })
+    }
+
+    await ensureConnection()
+
+    const userResult = await pool.query(
+      `SELECT id FROM ${DATABASE_SCHEMA}.users WHERE lower(email) = lower($1) LIMIT 1`,
+      [email],
+    )
+
+    // Respuesta uniforme aunque el correo no exista (evita enumeración).
+    if (userResult.rows.length === 0) {
+      return response.json({ ok: true, message: 'Si el correo existe, se enviaron instrucciones.' })
+    }
+
+    const userId = userResult.rows[0].id
+    const token = crypto.randomBytes(32).toString('hex')
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 30) // 30 minutos
+
+    await pool.query(
+      `INSERT INTO ${DATABASE_SCHEMA}.password_resets (user_id, token, expires_at)
+       VALUES ($1, $2, $3)`,
+      [userId, token, expiresAt.toISOString()],
+    )
+
+    // MVP: sin servicio de correo, devolvemos el token para poder probar el flujo.
+    return response.json({
+      ok: true,
+      message: 'Si el correo existe, se enviaron instrucciones.',
+      resetToken: token,
+    })
+  } catch (error) {
+    console.error('SERVER ERROR [POST /api/forgot-password]:', error)
+    return response.status(500).json({ ok: false, error: 'Error en el servidor.' })
+  }
+})
+
+// POST /api/reset-password
+// Aplica una nueva contraseña usando un token válido y no expirado.
+// Cuerpo esperado: { token, password }
+server.post('/api/reset-password', async (request, response) => {
+  try {
+    const { token, password } = request.body ?? {}
+    if (!token || !password) {
+      return response.status(400).json({ ok: false, error: 'Token y nueva contraseña son requeridos.' })
+    }
+
+    await ensureConnection()
+
+    const resetResult = await pool.query(
+      `SELECT id, user_id FROM ${DATABASE_SCHEMA}.password_resets
+       WHERE token = $1 AND used = false AND expires_at > now()
+       LIMIT 1`,
+      [token],
+    )
+
+    if (resetResult.rows.length === 0) {
+      return response.status(400).json({ ok: false, error: 'Token inválido o expirado.' })
+    }
+
+    const { id: resetId, user_id: userId } = resetResult.rows[0]
+
+    await pool.query(
+      `UPDATE ${DATABASE_SCHEMA}.users SET password = $1 WHERE id = $2`,
+      [password, userId],
+    )
+    await pool.query(
+      `UPDATE ${DATABASE_SCHEMA}.password_resets SET used = true WHERE id = $1`,
+      [resetId],
+    )
+
+    return response.json({ ok: true, message: 'Contraseña actualizada correctamente.' })
+  } catch (error) {
+    console.error('SERVER ERROR [POST /api/reset-password]:', error)
+    return response.status(500).json({ ok: false, error: 'Error en el servidor.' })
+  }
 })
 
 // POST /api/login

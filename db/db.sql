@@ -41,6 +41,32 @@ create index if not exists library_items_user_status_idx
 alter table public.library_items
   add column if not exists trailer_key text not null default '';
 
+-- Migración (Opción 2): datos de perfil en el registro clásico.
+-- Se añaden como nullables para no romper el usuario de demo ni filas existentes.
+alter table public.users
+  add column if not exists first_name text not null default '',
+  add column if not exists last_name  text not null default '',
+  add column if not exists phone      text not null default '',
+  add column if not exists email      text;
+
+-- El correo es único cuando está presente (permite múltiples NULL).
+create unique index if not exists users_email_key
+  on public.users (lower(email))
+  where email is not null;
+
+-- Tokens de recuperación de contraseña (MVP: token con expiración).
+create table if not exists public.password_resets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  token text not null unique,
+  expires_at timestamptz not null,
+  used boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists password_resets_token_idx
+  on public.password_resets (token);
+
 -- Usuario de demo (Admin / Admin123), equivalente al actual mongo_usr.sql.
 insert into public.users (username, password, initials)
 values ('Admin', 'Admin123', 'AD')
