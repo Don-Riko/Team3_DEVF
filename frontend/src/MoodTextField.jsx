@@ -106,8 +106,7 @@ export default function MoodTextField({ value, onChange, onSubmit, loading, stat
               deleteSpeed={30}
               pauseDelay={1400}
               startOnView={false}
-              showCursor
-              cursorStyle="line"
+              showCursor={false}
             />
           </span>
         ) : null}
