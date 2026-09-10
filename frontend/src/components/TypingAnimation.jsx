@@ -58,15 +58,16 @@ export function TypingAnimation({
   const MotionTag = motion[as] ?? motion.span
 
   const ref = useRef(null)
-  const inView = useInView(ref, { amount: 0.3, once: false })
-  const started = useRef(false)
+  const inView = useInView(ref, { amount: 0.3, once: true })
   const [display, setDisplay] = useState('')
 
+  // Señal de arranque estable: si startOnView es false, arranca de inmediato;
+  // si es true, arranca cuando el elemento entra en viewport (once: true, así
+  // inView ya no vuelve a cambiar y no re-dispara/cancela el efecto).
+  const shouldStart = startOnView ? inView : true
+
   useEffect(() => {
-    // Espera a estar en viewport si startOnView está activo.
-    if (startOnView && !inView) return
-    if (started.current) return
-    started.current = true
+    if (!shouldStart) return
 
     let cancelled = false
     let wordIndex = 0
@@ -118,7 +119,7 @@ export function TypingAnimation({
       timers.forEach(clearTimeout)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView, startOnView])
+  }, [shouldStart])
 
   const cursor = CURSOR_CHAR[cursorStyle] ?? CURSOR_CHAR.line
 

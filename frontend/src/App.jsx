@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { HERO_IMAGE, movies, getMood, moods } from './data'
@@ -8,7 +8,6 @@ import {
   ChevronRightIcon,
   CloseIcon,
   PlayIcon,
-  SparklesIcon,
 } from './icons'
 import { useAuth } from './AuthContext'
 import { recordMoodSelection } from './auth'
@@ -16,11 +15,13 @@ import {
   fetchLibrary,
   fetchOmdbCatalog,
   searchMovies,
+  searchMood,
   removeLibraryItem,
   saveLibraryItem,
   fetchProfile,
 } from './api'
 import MoodPicker from './MoodPicker'
+import MoodTextField from './MoodTextField'
 import MovieCard from './MovieCard'
 import MovieModal from './MovieModal'
 import ProfileModal from './ProfileModal'
@@ -262,6 +263,20 @@ export default function App() {
   const [recs, setRecs] = useState({ source: 'catalog', items: [] })
   const [recLoading, setRecLoading] = useState(false)
 
+  // ---- Mood text input (Describe cómo te sientes) ----
+  const [moodText, setMoodText] = useState('')
+  const [moodTextLoading, setMoodTextLoading] = useState(false)
+  // Estado del "logger mágico": 'idle' | 'loading' | 'success' | 'error' | 'empty'.
+  const [moodTextStatus, setMoodTextStatus] = useState('idle')
+  const moodTextDebounceRef = useRef(null)
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
+    }
+  }, [])
+
   // ---- Biblioteca ----
   const libKey = `midnight.library.${user?.username ?? 'guest'}`
   const [library, setLibrary] = useState(() => {
@@ -286,6 +301,7 @@ export default function App() {
   const [searchPage, setSearchPage] = useState(1)
   const [searchTotal, setSearchTotal] = useState(0)
   const [searchHasMore, setSearchHasMore] = useState(false)
+  const [searchSource, setSearchSource] = useState('omdb')
   const searchInputRef = useRef(null)
 
   const moodMeta = mood ? getMood(mood) : null
@@ -373,6 +389,49 @@ export default function App() {
     }
   }
 
+  // Debounced conversational mood search
+  const handleMoodTextSearch = useCallback(async (text) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    setMoodTextLoading(true)
+    setMoodTextStatus('loading')
+    try {
+      const result = await searchMood(trimmed)
+      if (result.ok && result.llm?.mood) {
+        setMoodTextStatus('success')
+        handleMoodChange(result.llm.mood)
+        // Deja ver el mensaje de éxito antes de limpiar el input.
+        setTimeout(() => {
+          setMoodText('')
+          setMoodTextStatus('idle')
+        }, 1200)
+        return
+      }
+    } catch (error) {
+      console.warn('LLM mood search failed:', error)
+      // Antes de rendirse, intenta el parser local (abajo). Solo marcamos error
+      // si tampoco ese detecta algo.
+    } finally {
+      setMoodTextLoading(false)
+    }
+
+    // Fallback: parser local de keywords
+    const detected = parseMoodFromText(trimmed)
+    if (detected) {
+      setMoodTextStatus('success')
+      handleMoodChange(detected)
+      setTimeout(() => {
+        setMoodText('')
+        setMoodTextStatus('idle')
+      }, 1200)
+    } else {
+      // No se entendió la intención del usuario.
+      setMoodTextLoading(false)
+      setMoodTextStatus('empty')
+    }
+  }, [handleMoodChange])
+
   function handlePlayNow() {
     if (!mood || items.length === 0) return
     const topMatch = items.reduce((best, current) =>
@@ -412,9 +471,11 @@ export default function App() {
       setSearchPage(result.page)
       setSearchTotal(result.total)
       setSearchHasMore(result.hasMore)
+      setSearchSource(result.source || 'omdb')
     } else {
       setSearchResults([])
       setSearchHasMore(false)
+      setSearchSource('omdb')
     }
   }
 
@@ -429,6 +490,7 @@ export default function App() {
     setSearchPage(result.page)
     setSearchTotal(result.total)
     setSearchHasMore(result.hasMore)
+    setSearchSource(result.source || 'omdb')
   }
 
   function handleSearchKeyDown(event) {
@@ -593,9 +655,15 @@ export default function App() {
               </div>
             ) : (
               <>
+                {searchSource === 'catalog' && (
+                  <div className="search-fallback-notice">
+                    <span className="fallback-icon">⚡</span>
+                    <span>Mostrando catálogo local (OMDB no disponible)</span>
+                  </div>
+                )}
                 <p className="recs-sub">
                   {searchResults.length} de {searchTotal || searchResults.length} resultado{searchTotal === 1 ? '' : 's'} de
-                  OMDB para "{searchQuery.trim()}".
+                  {searchSource === 'catalog' ? 'catálogo local' : 'OMDB'} para "{searchQuery.trim()}".
                 </p>
                 <div className="movie-row no-scrollbar search-results">
                   {searchResults.map((m) => (
@@ -659,28 +727,22 @@ export default function App() {
           </div>
           <div className="mood-wrap">
             <MoodPicker value={mood} onChange={handleMoodChange} themed />
-            <div className="mood-text-input">
-              <label htmlFor="mood-text" className="visually-hidden">
-                Describe cómo te sientes
-              </label>
-              <input
-                id="mood-text"
-                type="text"
-                className="mood-text-field"
-                placeholder="Ej: quiero algo tranquilo, necesito reírme, dame suspenso..."
-                aria-label="Describe tu estado de ánimo con tus palabras"
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    const detected = parseMoodFromText(event.currentTarget.value)
-                    if (detected) handleMoodChange(detected)
-                    event.currentTarget.value = ''
-                  }
-                }}
-              />
-              <span className="mood-text-hint">
-                <SparklesIcon size={14} /> Escribe con tus palabras
-              </span>
-            </div>
+            <MoodTextField
+              value={moodText}
+              onChange={(value) => {
+                setMoodText(value)
+                if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
+                moodTextDebounceRef.current = setTimeout(() => {
+                  handleMoodTextSearch(value)
+                }, 500)
+              }}
+              onSubmit={(value) => {
+                if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
+                handleMoodTextSearch(value)
+              }}
+              loading={moodTextLoading}
+              status={moodTextStatus}
+            />
             {mood && items.length > 0 && !recLoading && (
               <button
                 type="button"
