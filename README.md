@@ -260,6 +260,36 @@ El frontend estará disponible en `http://localhost:5173`.
 
 ---
 
+## Variables de Entorno (referencia completa)
+
+Esta sección consolida **todas** las variables que consume el proyecto, el entorno donde viven, si son obligatorias y su función. Los valores/keys **no** se documentan aquí: cada quien los coloca en su propio `.env` (nunca se versionan).
+
+### Backend (`backend/.env`)
+
+| Variable | Entorno | Obligatoria | Función |
+|---|---|---|---|
+| `PG_CONNECTION_STRING` | Backend | ✅ Sí | Cadena de conexión Postgres de Supabase. Para serverless (Vercel) usar el **pooler** (`:6543`, modo transaction); para local vale la directa. |
+| `SUPABASE_SCHEMA` | Backend | ⚪ Opcional | Esquema de la BD. Por defecto `public` si se omite. |
+| `PG_POOL_MAX` | Backend | ⚪ Opcional | Máx. de conexiones del `pg.Pool`. Por defecto `5`. Útil para afinar en serverless. |
+| `PORT` | Backend | ⚪ Opcional | Puerto del servidor Express en local. Por defecto `3000`. **No aplica en Vercel** (serverless ignora `listen`). |
+| `OMDB_API_KEY` | Backend | ✅ Sí | Key de [omdbapi.com](https://www.omdbapi.com). Catálogo real (pósters, ratings, sinopsis). Sin ella, se usa el catálogo local de respaldo. |
+| `OPENROUTER_API_KEY` | Backend | ⚪ Opcional | Key de [openrouter.ai](https://openrouter.ai). Habilita la búsqueda conversacional (LLM Nemotron). Sin ella, ese endpoint degrada a keywords locales. |
+| `TMDB_API_KEY` | Backend | ⚪ Opcional | API key (v3) de [themoviedb.org](https://www.themoviedb.org). Respaldo de tráilers oficiales y pósters. |
+| `TMDB_READ_ACCESS_TOKEN` | Backend | ⚪ Opcional | Read Access Token (Bearer v4) de TMDB. **Se prefiere** sobre `TMDB_API_KEY` si ambos están presentes. |
+| `VERCEL` | Backend | 🤖 Automática | La inyecta Vercel en runtime. Si está presente, el backend **no** llama a `listen()` (modo serverless). No la definas manualmente en local. |
+
+### Frontend (`frontend/.env`)
+
+| Variable | Entorno | Obligatoria | Función |
+|---|---|---|---|
+| `VITE_ENDPOINT` | Frontend (build) | ⚪ Opcional | URL base del backend. Por defecto `/api`. **Vite la hornea en tiempo de build**, así que debe existir antes de compilar/desplegar. En producción apunta al dominio del backend (p. ej. `https://<backend>.vercel.app/api`); en local, el proxy de Vite cubre `/api`. |
+
+> **Degradación elegante:** las variables opcionales de servicios externos (OMDB/TMDB/OpenRouter) pueden faltar sin romper el arranque; el backend cae a respaldos (catálogo local, sin tráiler oficial, o búsqueda por keywords). Las obligatorias marcadas ✅ sí se requieren para la funcionalidad principal.
+
+> **TMDB (v3 vs v4):** el backend acepta tanto `TMDB_API_KEY` (query `api_key`, v3) como `TMDB_READ_ACCESS_TOKEN` (header `Authorization: Bearer`, v4). Si defines ambas, se usa el token v4 por ser el método recomendado por TMDB.
+
+---
+
 ## Arquitectura
 
 ### Arquitectura implementada
