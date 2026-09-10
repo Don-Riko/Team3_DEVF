@@ -586,65 +586,164 @@ svg {
   font-size: 0.9375rem;
   font-family: inherit;
   color: var(--foreground);
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: none;
   border-radius: 9999px;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .mood-text-field::placeholder {
   color: var(--muted-foreground);
   opacity: 0.7;
 }
-.mood-text-field:focus {
+
+/* Shell: contiene el borde animado, el botón sparkle y el input. */
+.mood-text-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.mood-text-shell:focus-within {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
 }
-.mood-text-input::before {
-  content: '';
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1.125rem;
-  height: 1.125rem;
-  background: var(--gradient-primary);
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2'%3E%3Cpath d='M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z'/%3E%3Cpath d='M20 2v4'/%3E%3Cpath d='M22 4h-4'/%3E%3Ccircle cx='4' cy='20' r='2'/%3E%3C/svg%3E") center/contain;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2'%3E%3Cpath d='M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z'/%3E%3Cpath d='M20 2v4'/%3E%3Cpath d='M22 4h-4'/%3E%3Ccircle cx='4' cy='20' r='2'/%3E%3C/svg%3E") center/contain;
-  opacity: 0.5;
-  pointer-events: none;
+
+/* Estado 2: con texto -> borde con efecto sparkles (gradiente animado). */
+.mood-text-shell--active {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    linear-gradient(90deg,
+      color-mix(in oklab, var(--primary) 90%, white),
+      #f5c451,
+      color-mix(in oklab, var(--brand-pink) 80%, white),
+      color-mix(in oklab, var(--primary) 90%, white)
+    ) border-box;
+  background-size: 100% 100%, 300% 100%;
+  animation: mood-sparkle-border 3s linear infinite;
 }
-.mood-text-hint {
-  position: absolute;
-  right: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.75rem;
-  color: var(--muted-foreground);
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  pointer-events: none;
-  opacity: 0.7;
-}
-@media (max-width: 480px) {
-  .mood-text-hint {
-    display: none;
-  }
+@keyframes mood-sparkle-border {
+  to { background-position: 0 0, 300% 0; }
 }
 
-.mood-text-loading {
+/* Puntitos "sparkle" que orbitan el borde cuando está activo. */
+.mood-text-shell--active::before,
+.mood-text-shell--active::after {
+  content: '';
   position: absolute;
-  right: 3rem;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #f5c451;
+  box-shadow: 0 0 6px 1px #f5c451;
+  opacity: 0;
+  animation: mood-sparkle-twinkle 1.8s ease-in-out infinite;
+}
+.mood-text-shell--active::before { top: 10%; left: 18%; animation-delay: 0.2s; }
+.mood-text-shell--active::after  { bottom: 14%; right: 22%; animation-delay: 1s; }
+@keyframes mood-sparkle-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.5); }
+  50%      { opacity: 1; transform: scale(1.2); }
+}
+
+/* Botón sparkle interno (izquierda). */
+.mood-text-spark {
+  position: absolute;
+  left: 0.85rem;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 1rem;
-  color: var(--primary);
-  animation: spin 1s linear infinite;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem;
+  border: none;
+  background: transparent;
+  border-radius: 9999px;
+  /* Estado 0: apagado/oscuro. */
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  cursor: default;
+  transition: color 0.2s, opacity 0.2s, transform 0.15s;
 }
-@keyframes spin {
-  from { transform: translateY(-50%) rotate(0deg); }
-  to { transform: translateY(-50%) rotate(360deg); }
+/* Estado 2/3: activo -> blanco/dorado con pulso. */
+.mood-text-spark--active {
+  color: #f5c451;
+  opacity: 1;
+  cursor: pointer;
+  filter: drop-shadow(0 0 4px color-mix(in oklab, #f5c451 60%, transparent));
+  animation: mood-spark-pulse 1.4s ease-in-out infinite;
+}
+.mood-text-spark--active:hover { transform: translateY(-50%) scale(1.15); }
+.mood-text-spark--active:active { transform: translateY(-50%) scale(0.9); }
+.mood-text-spark:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--background);
+}
+/* Estado 3/4: buscando -> pulso más marcado (loader). */
+.mood-text-spark--busy {
+  animation: mood-spark-pulse 0.7s ease-in-out infinite;
+}
+@keyframes mood-spark-pulse {
+  0%, 100% { transform: translateY(-50%) scale(1); opacity: 0.85; }
+  50%      { transform: translateY(-50%) scale(1.18); opacity: 1; }
+}
+
+/* Placeholder animado (TypingAnimation) sobre el input. */
+.mood-text-typing {
+  position: absolute;
+  left: 2.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.9375rem;
+  color: color-mix(in oklab, white 65%, transparent);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: calc(100% - 3.5rem);
+  animation: mood-typing-fade 0.4s ease-out;
+}
+@keyframes mood-typing-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Leyenda inferior / logger mágico. */
+.mood-text-legend {
+  min-height: 1.25rem;
+  margin-top: 0.5rem;
+  text-align: center;
+  font-size: 0.8125rem;
+}
+.mood-text-hint-legend {
+  color: color-mix(in oklab, white 65%, transparent);
+  animation: mood-typing-fade 0.5s ease-out;
+}
+.mood-text-logger {
+  animation: mood-typing-fade 0.35s ease-out;
+}
+.mood-text-logger--loading { color: color-mix(in oklab, var(--primary) 80%, white); }
+.mood-text-logger--success { color: var(--brand-success); }
+.mood-text-logger--error   { color: var(--brand-pink); }
+.mood-text-logger--empty   { color: var(--muted-foreground); }
+.mood-text-logger--pulse {
+  animation: mood-typing-fade 0.35s ease-out, mood-logger-pulse 1.5s ease-in-out infinite;
+}
+@keyframes mood-logger-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mood-text-shell--active { animation: none; }
+  .mood-text-shell--active::before,
+  .mood-text-shell--active::after { animation: none; opacity: 0; }
+  .mood-text-spark--active,
+  .mood-text-spark--busy { animation: none; }
+  .mood-text-logger--pulse { animation: mood-typing-fade 0.35s ease-out; }
 }
 
 .mood-grid {

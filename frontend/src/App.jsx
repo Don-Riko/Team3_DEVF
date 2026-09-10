@@ -8,7 +8,6 @@ import {
   ChevronRightIcon,
   CloseIcon,
   PlayIcon,
-  SparklesIcon,
 } from './icons'
 import { useAuth } from './AuthContext'
 import { recordMoodSelection } from './auth'
@@ -22,6 +21,7 @@ import {
   fetchProfile,
 } from './api'
 import MoodPicker from './MoodPicker'
+import MoodTextField from './MoodTextField'
 import MovieCard from './MovieCard'
 import MovieModal from './MovieModal'
 import ProfileModal from './ProfileModal'
@@ -266,6 +266,8 @@ export default function App() {
   // ---- Mood text input (Describe cómo te sientes) ----
   const [moodText, setMoodText] = useState('')
   const [moodTextLoading, setMoodTextLoading] = useState(false)
+  // Estado del "logger mágico": 'idle' | 'loading' | 'success' | 'error' | 'empty'.
+  const [moodTextStatus, setMoodTextStatus] = useState('idle')
   const moodTextDebounceRef = useRef(null)
 
   // Cleanup debounce timer on unmount
@@ -393,15 +395,23 @@ export default function App() {
     if (!trimmed) return
 
     setMoodTextLoading(true)
+    setMoodTextStatus('loading')
     try {
       const result = await searchMood(trimmed)
       if (result.ok && result.llm?.mood) {
+        setMoodTextStatus('success')
         handleMoodChange(result.llm.mood)
-        setMoodText('')
+        // Deja ver el mensaje de éxito antes de limpiar el input.
+        setTimeout(() => {
+          setMoodText('')
+          setMoodTextStatus('idle')
+        }, 1200)
         return
       }
     } catch (error) {
       console.warn('LLM mood search failed:', error)
+      // Antes de rendirse, intenta el parser local (abajo). Solo marcamos error
+      // si tampoco ese detecta algo.
     } finally {
       setMoodTextLoading(false)
     }
@@ -409,10 +419,16 @@ export default function App() {
     // Fallback: parser local de keywords
     const detected = parseMoodFromText(trimmed)
     if (detected) {
+      setMoodTextStatus('success')
       handleMoodChange(detected)
-      setMoodText('')
+      setTimeout(() => {
+        setMoodText('')
+        setMoodTextStatus('idle')
+      }, 1200)
     } else {
+      // No se entendió la intención del usuario.
       setMoodTextLoading(false)
+      setMoodTextStatus('empty')
     }
   }, [handleMoodChange])
 
@@ -711,40 +727,22 @@ export default function App() {
           </div>
           <div className="mood-wrap">
             <MoodPicker value={mood} onChange={handleMoodChange} themed />
-            <div className="mood-text-input">
-              <label htmlFor="mood-text" className="visually-hidden">
-                Describe cómo te sientes
-              </label>
-              <input
-                id="mood-text"
-                type="text"
-                className="mood-text-field"
-                placeholder="Ej: quiero algo tranquilo, necesito reírme, dame suspenso..."
-                aria-label="Describe tu estado de ánimo con tus palabras"
-                value={moodText}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setMoodText(value)
-                  // Debounce: cancelar búsqueda anterior
-                  if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
-                  // Buscar después de 500ms de inactividad
-                  moodTextDebounceRef.current = setTimeout(() => {
-                    handleMoodTextSearch(value)
-                  }, 500)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
-                    handleMoodTextSearch(moodText)
-                  }
-                }}
-              />
-              {moodTextLoading && <span className="mood-text-loading" aria-label="Buscando...">⟳</span>}
-              <span className="mood-text-hint">
-                <SparklesIcon size={14} /> Escribe con tus palabras
-              </span>
-            </div>
+            <MoodTextField
+              value={moodText}
+              onChange={(value) => {
+                setMoodText(value)
+                if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
+                moodTextDebounceRef.current = setTimeout(() => {
+                  handleMoodTextSearch(value)
+                }, 500)
+              }}
+              onSubmit={(value) => {
+                if (moodTextDebounceRef.current) clearTimeout(moodTextDebounceRef.current)
+                handleMoodTextSearch(value)
+              }}
+              loading={moodTextLoading}
+              status={moodTextStatus}
+            />
             {mood && items.length > 0 && !recLoading && (
               <button
                 type="button"
