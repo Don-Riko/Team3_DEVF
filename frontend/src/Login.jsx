@@ -17,6 +17,7 @@ export default function Login() {
   const [errors, setErrors] = useState({})
   const [touched, setTouched] = useState({})
   const [authError, setAuthError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   // A dónde volver tras iniciar sesión (o /welcome por defecto).
   const from = location.state?.from ?? '/welcome'
@@ -55,9 +56,11 @@ export default function Login() {
     }
     setErrors({})
 
+    setLoading(true)
     const outcome = await login(result.data.username, result.data.password)
     if (!outcome.ok) {
       setAuthError(outcome.error || 'Usuario o contraseña incorrectos.')
+      setLoading(false)
       return
     }
     navigate(from, { replace: true })
@@ -100,6 +103,7 @@ export default function Login() {
               aria-invalid={Boolean(errors.username)}
               aria-describedby={errors.username ? 'username-error' : undefined}
               placeholder="p. ej. Admin"
+              disabled={loading}
             />
             {errors.username ? (
               <p id="username-error" className="field-error" role="alert">
@@ -124,6 +128,7 @@ export default function Login() {
               aria-invalid={Boolean(errors.password)}
               aria-describedby={errors.password ? 'password-error' : undefined}
               placeholder="••••••••"
+              disabled={loading}
             />
             {errors.password ? (
               <p id="password-error" className="field-error" role="alert">
@@ -141,9 +146,10 @@ export default function Login() {
           <button
             type="submit"
             className="btn btn-primary auth-submit"
-            disabled={!canSubmit}
+            disabled={!canSubmit || loading}
           >
-            Entrar
+            {loading ? <span className="btn-spinner" aria-hidden="true" /> : null}
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
 

@@ -94,3 +94,34 @@ export function allRegisterFieldsComplete(values) {
     Boolean(values.confirmPassword?.trim())
   )
 }
+
+// Mensajes de éxito por campo (feedback positivo cuando cumple las reglas).
+const SUCCESS_MESSAGES = {
+  firstName: 'Nombre válido.',
+  lastName: 'Apellidos válidos.',
+  phone: 'Celular válido.',
+  email: 'Correo válido.',
+  password: 'Contraseña segura.',
+  confirmPassword: 'Las contraseñas coinciden.',
+}
+
+/**
+ * Valida un solo campo en el contexto del formulario completo y devuelve su
+ * estado de presentación para feedback en vivo.
+ *
+ * @returns {{ status: 'empty'|'valid'|'error', message: string }}
+ *   - empty: el campo está vacío -> sin mensaje.
+ *   - valid: cumple las reglas -> mensaje positivo.
+ *   - error: incumple -> mensaje de error.
+ */
+export function validateRegisterField(name, values) {
+  const raw = values[name]
+  if (!raw || !String(raw).trim()) {
+    return { status: 'empty', message: '' }
+  }
+  const result = validateRegister(values)
+  if (result.success || !result.errors[name]) {
+    return { status: 'valid', message: SUCCESS_MESSAGES[name] || 'Correcto.' }
+  }
+  return { status: 'error', message: result.errors[name] }
+}
