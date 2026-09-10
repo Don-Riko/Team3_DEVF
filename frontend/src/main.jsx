@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
 import { AuthProvider } from './AuthContext.jsx'
-import { LoginRoute, RegisterRoute, WelcomeRoute } from './routes.jsx'
+import { LoginRoute, RegisterRoute, ForgotPasswordRoute, WelcomeRoute } from './routes.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -12,6 +12,7 @@ createRoot(document.getElementById('root')).render(
         <Routes>
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/register" element={<RegisterRoute />} />
+          <Route path="/forgot-password" element={<ForgotPasswordRoute />} />
           <Route path="/welcome" element={<WelcomeRoute />} />
           {/* La raíz redirige a la página principal protegida. */}
           <Route path="/" element={<Navigate to="/welcome" replace />} />

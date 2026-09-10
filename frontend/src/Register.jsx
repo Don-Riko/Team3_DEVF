@@ -1,12 +1,35 @@
 // Register.jsx
-// Pantalla de registro (/register), para crear nueva cuenta.
+// Pantalla de registro (/register): formulario clásico completo validado con Zod
+// (nombre, apellidos, celular MX, correo, contraseña + confirmación/repetidor).
+//
+// NOTA DE ALCANCE (Opción 1 - solo frontend): el backend actual solo persiste
+// { username, password }. Los campos nombre/apellidos/teléfono se validan en el
+// cliente pero aún no se guardan (no hay columnas ni endpoint). El username se
+// deriva del correo para mantener compatibilidad con POST /api/register.
 import { useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
-import { validateLogin, allFieldsComplete } from './loginSchema'
+import { validateRegister, allRegisterFieldsComplete } from './registerSchema'
 import { SparklesIcon } from './icons'
 
-const EMPTY = { username: '', password: '' }
+const EMPTY = {
+  firstName: '',
+  lastName: '',
+  phone: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+}
+
+// Campos a renderizar en orden, con su metadata de presentación.
+const FIELDS = [
+  { name: 'firstName', label: 'Nombre', type: 'text', autoComplete: 'given-name', placeholder: 'p. ej. Ana' },
+  { name: 'lastName', label: 'Apellidos', type: 'text', autoComplete: 'family-name', placeholder: 'p. ej. Pérez López' },
+  { name: 'phone', label: 'Celular', type: 'tel', autoComplete: 'tel', placeholder: 'p. ej. 5512345678' },
+  { name: 'email', label: 'Correo', type: 'email', autoComplete: 'email', placeholder: 'p. ej. ana@correo.com' },
+  { name: 'password', label: 'Contraseña', type: 'password', autoComplete: 'new-password', placeholder: 'mín. 6 caracteres' },
+  { name: 'confirmPassword', label: 'Confirmar contraseña', type: 'password', autoComplete: 'new-password', placeholder: 'repite tu contraseña' },
+]
 
 export default function Register() {
   const navigate = useNavigate()
@@ -21,7 +44,7 @@ export default function Register() {
 
   const from = location.state?.from ?? '/welcome'
 
-  const canSubmit = useMemo(() => allFieldsComplete(values), [values])
+  const canSubmit = useMemo(() => allRegisterFieldsComplete(values), [values])
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -30,7 +53,7 @@ export default function Register() {
     setAuthError('')
 
     if (touched[name]) {
-      const result = validateLogin(next)
+      const result = validateRegister(next)
       setErrors(result.success ? {} : result.errors)
     }
   }
@@ -38,15 +61,17 @@ export default function Register() {
   function handleBlur(event) {
     const { name } = event.target
     setTouched((t) => ({ ...t, [name]: true }))
-    const result = validateLogin(values)
+    const result = validateRegister(values)
     setErrors(result.success ? {} : result.errors)
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
-    setTouched({ username: true, password: true })
+    setTouched(
+      FIELDS.reduce((acc, f) => ({ ...acc, [f.name]: true }), {}),
+    )
 
-    const result = validateLogin(values)
+    const result = validateRegister(values)
     if (!result.success) {
       setErrors(result.errors)
       return
@@ -54,11 +79,16 @@ export default function Register() {
     setErrors({})
     setLoading(true)
 
+    // El backend actual solo acepta { username, password }. Derivamos el
+    // username del correo (parte local) para mantener compatibilidad.
+    const username = result.data.email.split('@')[0]
+    const payload = { username, password: result.data.password }
+
     try {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result.data),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
 
@@ -68,8 +98,7 @@ export default function Register() {
         return
       }
 
-      // Auto-login después de registrar
-      const loginOutcome = await login(result.data.username, result.data.password)
+      const loginOutcome = await login(username, result.data.password)
       if (loginOutcome.ok) {
         navigate(from, { replace: true })
       } else {
@@ -91,7 +120,7 @@ export default function Register() {
             <SparklesIcon size={16} />
           </span>
           <span className="brand-text">
-            Midnight<span className="brand-dim"> Cinema & Mood</span>
+            Midnight<span className="brand-dim"> Cinema &amp; Mood</span>
           </span>
         </div>
 
@@ -103,55 +132,32 @@ export default function Register() {
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
-          <div className="field">
-            <label htmlFor="username" className="field-label">
-              Usuario
-            </label>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              autoComplete="username"
-              className={`field-input${errors.username ? ' field-input--error' : ''}`}
-              value={values.username}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              aria-invalid={Boolean(errors.username)}
-              aria-describedby={errors.username ? 'username-error' : undefined}
-              placeholder="mín. 3 caracteres"
-              disabled={loading}
-            />
-            {errors.username ? (
-              <p id="username-error" className="field-error" role="alert">
-                {errors.username}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="field">
-            <label htmlFor="password" className="field-label">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              className={`field-input${errors.password ? ' field-input--error' : ''}`}
-              value={values.password}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              aria-invalid={Boolean(errors.password)}
-              aria-describedby={errors.password ? 'password-error' : undefined}
-              placeholder="mín. 6 caracteres"
-              disabled={loading}
-            />
-            {errors.password ? (
-              <p id="password-error" className="field-error" role="alert">
-                {errors.password}
-              </p>
-            ) : null}
-          </div>
+          {FIELDS.map((field) => (
+            <div className="field" key={field.name}>
+              <label htmlFor={field.name} className="field-label">
+                {field.label}
+              </label>
+              <input
+                id={field.name}
+                name={field.name}
+                type={field.type}
+                autoComplete={field.autoComplete}
+                className={`field-input${errors[field.name] ? ' field-input--error' : ''}`}
+                value={values[field.name]}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                aria-invalid={Boolean(errors[field.name])}
+                aria-describedby={errors[field.name] ? `${field.name}-error` : undefined}
+                placeholder={field.placeholder}
+                disabled={loading}
+              />
+              {errors[field.name] ? (
+                <p id={`${field.name}-error`} className="field-error" role="alert">
+                  {errors[field.name]}
+                </p>
+              ) : null}
+            </div>
+          ))}
 
           {authError ? (
             <p className="auth-error" role="alert">

@@ -150,6 +150,9 @@ export default function Login() {
         <p className="auth-switch">
           ¿No tienes cuenta? <a href="/register">Regístrate</a>
         </p>
+        <p className="auth-switch">
+          ¿Olvidaste tu contraseña? <a href="/forgot-password">Recupérala</a>
+        </p>
       </section>
     </main>
   )
