@@ -10,6 +10,7 @@ import {
   PlayIcon,
 } from './icons'
 import { useAuth } from './AuthContext'
+import PalomitasIcon from './PalomitasIcon'
 import { recordMoodSelection } from './auth'
 import {
   fetchLibrary,
@@ -595,7 +596,7 @@ export default function App() {
       <section className="brand-banner" aria-label="Midnight Cinema & Mood">
         <div className="brand-banner-inner">
           <span className="brand-banner-popcorn">
-            <img src="/imagenes/palomita.png" alt="Palomitas de cine" />
+            <PalomitasIcon className="brand-banner-popcorn-svg" />
           </span>
           <h1>Midnight Cinema &amp; Mood</h1>
         </div>
