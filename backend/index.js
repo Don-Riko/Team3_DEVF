@@ -41,7 +41,12 @@ const DATABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public'
 const OMDB_KEY = process.env.OMDB_API_KEY
 const OMDB_BASE = 'https://www.omdbapi.com'
 const TMDB_KEY = process.env.TMDB_API_KEY
+const TMDB_READ_TOKEN = process.env.TMDB_READ_ACCES_TOKEN || process.env.TMDB_READ_ACCESS_TOKEN
 const TMDB_BASE = 'https://api.themoviedb.org/3'
+// Base pública para construir URLs de imágenes de TMDB (posters/backdrops).
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p'
+// TMDB está disponible si hay al menos una credencial (Bearer v4 o api_key v3).
+const TMDB_ENABLED = Boolean(TMDB_READ_TOKEN || TMDB_KEY)
 
 // ---------- OpenRouter (LLM para búsqueda conversacional) ----------
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY
@@ -579,6 +584,16 @@ async function enrichMovies(entries) {
         const movie = omdbToMovie(entry, raw)
         if (movie) {
           await attachTrailer(movie)
+          // Respaldo de póster: si OMDB no trajo imagen, intenta TMDB.
+          // Reutiliza el tmdbId cacheado por attachTrailer (0 requests extra
+          // cuando el tráiler ya lo resolvió). No pisa un póster existente.
+          if (!movie.poster) {
+            const tmdbPoster = await resolveTmdbPoster(movie.imdbId)
+            if (tmdbPoster) {
+              movie.poster = tmdbPoster
+              movie.posterSource = 'tmdb'
+            }
+          }
           omdbCache.set(entry.imdbId, movie)
         }
         return movie
@@ -657,44 +672,95 @@ function trailerSearchUrl(title, year) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
 }
 
-async function resolveTmdbTrailer(imdbId) {
-  if (!TMDB_KEY) return null
-  if (trailerCache.has(imdbId)) return trailerCache.get(imdbId)
+// Caché imdbId -> tmdbId para no repetir el /find entre videos e imágenes.
+const tmdbIdCache = new Map()
+// Caché imdbId -> poster URL de TMDB (respaldo cuando OMDB no trae póster).
+const tmdbPosterCache = new Map()
 
+// Helper central de TMDB. Prefiere el Read Access Token (Bearer, v4); si no
+// existe, cae al api_key (v3) por query string. Devuelve JSON o null si falla
+// o si TMDB no está configurado. Nunca lanza: la degradación es silenciosa.
+async function tmdb(path, params = {}) {
+  if (!TMDB_ENABLED) return null
   try {
-    const findUrl = new URL(`${TMDB_BASE}/find/${encodeURIComponent(imdbId)}`)
-    findUrl.searchParams.set('api_key', TMDB_KEY)
-    findUrl.searchParams.set('external_source', 'imdb_id')
-    const findResponse = await fetch(findUrl)
-    if (!findResponse.ok) return null
-    const found = await findResponse.json()
-    const media = found.movie_results?.[0]
-    if (!media?.id) return null
-
-    const videoUrl = new URL(`${TMDB_BASE}/movie/${media.id}/videos`)
-    videoUrl.searchParams.set('api_key', TMDB_KEY)
-    videoUrl.searchParams.set('language', 'en-US')
-    const videoResponse = await fetch(videoUrl)
-    if (!videoResponse.ok) return null
-    const data = await videoResponse.json()
-    const video = (data.results || []).find(
-      (item) => item.site === 'YouTube' && item.type === 'Trailer' && item.official,
-    ) || (data.results || []).find(
-      (item) => item.site === 'YouTube' && ['Trailer', 'Teaser'].includes(item.type),
-    )
-    if (!video?.key) return null
-
-    const result = {
-      provider: 'tmdb',
-      key: video.key,
-      url: `https://www.youtube.com/watch?v=${video.key}`,
-      verified: true,
+    const url = new URL(`${TMDB_BASE}${path}`)
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v)
     }
-    trailerCache.set(imdbId, result)
-    return result
+    const headers = { accept: 'application/json' }
+    if (TMDB_READ_TOKEN) {
+      headers.Authorization = `Bearer ${TMDB_READ_TOKEN}`
+    } else if (TMDB_KEY) {
+      url.searchParams.set('api_key', TMDB_KEY)
+    }
+    const response = await fetch(url, { headers })
+    if (!response.ok) return null
+    return await response.json()
   } catch {
     return null
   }
+}
+
+// Resuelve el id interno de TMDB a partir de un IMDb id (con caché).
+async function resolveTmdbId(imdbId) {
+  if (!imdbId) return null
+  if (tmdbIdCache.has(imdbId)) return tmdbIdCache.get(imdbId)
+  const found = await tmdb(`/find/${encodeURIComponent(imdbId)}`, {
+    external_source: 'imdb_id',
+  })
+  const id = found?.movie_results?.[0]?.id ?? null
+  tmdbIdCache.set(imdbId, id)
+  return id
+}
+
+async function resolveTmdbTrailer(imdbId) {
+  if (!TMDB_ENABLED) return null
+  if (trailerCache.has(imdbId)) return trailerCache.get(imdbId)
+
+  const tmdbId = await resolveTmdbId(imdbId)
+  if (!tmdbId) return null
+
+  const data = await tmdb(`/movie/${tmdbId}/videos`, { language: 'en-US' })
+  if (!data) return null
+
+  const video =
+    (data.results || []).find(
+      (item) => item.site === 'YouTube' && item.type === 'Trailer' && item.official,
+    ) ||
+    (data.results || []).find(
+      (item) => item.site === 'YouTube' && ['Trailer', 'Teaser'].includes(item.type),
+    )
+  if (!video?.key) return null
+
+  const result = {
+    provider: 'tmdb',
+    key: video.key,
+    url: `https://www.youtube.com/watch?v=${video.key}`,
+    verified: true,
+  }
+  trailerCache.set(imdbId, result)
+  return result
+}
+
+// Respaldo de póster vía TMDB cuando OMDB no trae imagen. Reutiliza el tmdbId
+// ya cacheado (0 requests extra si el tráiler ya lo resolvió).
+async function resolveTmdbPoster(imdbId) {
+  if (!TMDB_ENABLED || !imdbId) return null
+  if (tmdbPosterCache.has(imdbId)) return tmdbPosterCache.get(imdbId)
+
+  const tmdbId = await resolveTmdbId(imdbId)
+  if (!tmdbId) {
+    tmdbPosterCache.set(imdbId, null)
+    return null
+  }
+
+  const images = await tmdb(`/movie/${tmdbId}/images`, {
+    include_image_language: 'en,null',
+  })
+  const posterPath = images?.posters?.[0]?.file_path || null
+  const url = posterPath ? `${TMDB_IMAGE_BASE}/w500${posterPath}` : null
+  tmdbPosterCache.set(imdbId, url)
+  return url
 }
 
 async function attachTrailer(movie) {
