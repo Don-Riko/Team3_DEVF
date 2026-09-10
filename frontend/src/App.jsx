@@ -8,6 +8,7 @@ import {
   ChevronRightIcon,
   CloseIcon,
   PlayIcon,
+  MenuIcon,
 } from './icons'
 import { useAuth } from './AuthContext'
 import PalomitasIcon from './PalomitasIcon'
@@ -294,6 +295,9 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [moodHistory, setMoodHistory] = useState({})
 
+  // ---- Menú de navegación móvil ----
+  const [menuOpen, setMenuOpen] = useState(false)
+
   // ---- Buscador OMDB ----
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -568,14 +572,25 @@ export default function App() {
     <main className="min-h-screen bg-background">
       <header className="site-header">
         <div className="container header-inner">
-          
-            
-          
+          <button
+            type="button"
+            className="icon-btn nav-toggle"
+            aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
+            aria-expanded={menuOpen}
+            aria-controls="main-nav"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? <CloseIcon size={18} /> : <MenuIcon size={18} />}
+          </button>
 
-          <nav className="main-nav" aria-label="Navegación principal">
-            <a href="#moods">Moods</a>
-            <a href="#recomendaciones">Recomendaciones</a>
-            <a href="#mi-biblioteca">Mi biblioteca</a>
+          <nav
+            id="main-nav"
+            className={`main-nav${menuOpen ? ' main-nav--open' : ''}`}
+            aria-label="Navegación principal"
+          >
+            <a href="#moods" onClick={() => setMenuOpen(false)}>Moods</a>
+            <a href="#recomendaciones" onClick={() => setMenuOpen(false)}>Recomendaciones</a>
+            <a href="#mi-biblioteca" onClick={() => setMenuOpen(false)}>Mi biblioteca</a>
           </nav>
 
           <div className="header-actions">
