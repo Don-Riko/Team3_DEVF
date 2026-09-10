@@ -328,8 +328,9 @@ svg {
   background: color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 
-/* Botón hamburguesa: visible solo en móvil. */
-.nav-toggle {
+/* Botón hamburguesa: visible solo en móvil. Selector con la especificidad del
+   contenedor para ganar a .icon-btn (que define display: grid más abajo). */
+.header-inner .nav-toggle {
   display: inline-flex;
 }
 
@@ -355,7 +356,7 @@ svg {
     padding: 0;
     background: none;
   }
-  .nav-toggle {
+  .header-inner .nav-toggle {
     display: none;
   }
 }
