@@ -246,6 +246,7 @@ svg {
   display: flex;
   height: 4rem;
   align-items: center;
+  position: relative;
   justify-content: space-between;
   gap: 1rem;
   padding: 0 1rem;
@@ -289,24 +290,75 @@ svg {
 }
 
 .main-nav {
+  /* Móvil: panel desplegable bajo el header, oculto por defecto. */
   display: none;
-  margin-left: auto;
-  align-items: center;
-  gap: 2.25rem;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.5rem 1rem 1rem;
   font-size: 1rem;
   font-weight: 600;
   color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--background) 92%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid var(--border);
 }
-@media (min-width: 768px) {
-  .main-nav {
-    display: flex;
-  }
+.main-nav--open {
+  display: flex;
+  animation: nav-drop 0.18s ease-out;
+}
+@keyframes nav-drop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .main-nav a {
-  transition: color 0.15s;
+  width: 100%;
+  padding: 0.625rem 0.5rem;
+  border-radius: calc(var(--radius) - 4px);
+  transition: color 0.15s, background 0.15s;
 }
 .main-nav a:hover {
   color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+/* Botón hamburguesa: visible solo en móvil. Selector con la especificidad del
+   contenedor para ganar a .icon-btn (que define display: grid más abajo). */
+.header-inner .nav-toggle {
+  display: inline-flex;
+}
+
+@media (min-width: 768px) {
+  /* Escritorio: nav en fila, sin panel ni botón. */
+  .main-nav {
+    display: flex;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: 2.25rem;
+    margin-left: auto;
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    border-bottom: none;
+    animation: none;
+  }
+  .main-nav a {
+    width: auto;
+    padding: 0;
+    background: none;
+  }
+  .header-inner .nav-toggle {
+    display: none;
+  }
 }
 .nav-static {
   cursor: default;
@@ -338,7 +390,7 @@ svg {
   min-height: 10rem;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
+  gap: 0.2rem;
   padding: 2rem 1rem;
 }
 .brand-banner-popcorn {
@@ -347,16 +399,20 @@ svg {
   width: 7.25rem;
   height: 7.25rem;
   flex: 0 0 auto;
-  border-radius: 0.25rem;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 0.75rem 2rem color-mix(in oklab, #000 35%, transparent);
+  background: transparent;
 }
-.brand-banner-popcorn img {
+.brand-banner-popcorn-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+.brand-banner-popcorn-svg svg {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
+  /* El relleno lo aporta el <linearGradient> interno (medianoche). */
 }
 .brand-banner h1 {
   margin: 0;
@@ -371,7 +427,7 @@ svg {
 @media (max-width: 640px) {
   .brand-banner-inner {
     min-height: 7.5rem;
-    gap: 1rem;
+    gap: 0.5rem;
     padding: 1.25rem 1rem;
   }
   .brand-banner-popcorn {
@@ -1603,6 +1659,7 @@ svg {
 .auth-screen {
   position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 2rem 1rem;
